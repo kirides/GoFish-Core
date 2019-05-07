@@ -239,9 +239,9 @@ namespace GoFishCore.WpfUI
             {
                 if (lineIdx <= previousLine)
                 {
-                    return value.Substring(previousLine..);
+                    return value[previousLine..];
                 }
-                return value.Substring(previousLine..lineIdx);
+                return value[previousLine..lineIdx];
             }
             return "";
         }
