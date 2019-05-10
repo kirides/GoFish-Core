@@ -9,10 +9,10 @@ namespace GoFish.DataAccess.Helpers
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <param name="offset">Where the UInt64 starts</param>
-        public static DateTimeOffset FromULongBuffer(byte[] buffer, int offset)
+        public static DateTimeOffset FromULongBuffer(ReadOnlySpan<byte> buffer)
         {
-            var vl = BitConverter.ToUInt64(buffer, offset);
-            return FromLong(vl);
+            return FromLong(
+                System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(buffer));
         }
         public static DateTimeOffset FromLong(ulong julianDateLong)
         {

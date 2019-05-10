@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Buffers.Binary;
 using System.IO;
-using System.Threading.Tasks;
 
 namespace GoFish.DataAccess.Extensions
 {
@@ -20,15 +20,12 @@ namespace GoFish.DataAccess.Extensions
             s.Read(buf);
             if (bigEndian)
             {
-                return buf[0] << 24 | buf[1] << 16 | buf[2] << 8 | buf[3];
+                return BinaryPrimitives.ReadInt32BigEndian(buf);
             }
             else
             {
-                return BitConverter.ToInt32(buf);
+                return BinaryPrimitives.ReadInt32LittleEndian(buf);
             }
-            //var buf = new byte[sizeof(int)];
-            //ReadNumber(s, buf, 0, sizeof(int), bigEndian);
-            //return BitConverter.ToInt32(buf, 0);
         }
 
         public static short ReadShort(this Stream s, bool bigEndian = false)

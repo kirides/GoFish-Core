@@ -41,7 +41,7 @@ namespace GoFish.DataAccess
         public Stream OpenMemo()
         {
             if (string.IsNullOrEmpty(memoPath)) throw new InvalidOperationException($"No associated MEMO-file ({DbfFilePathHelper.GetMemoExtension(Path.GetExtension(dbfPath))}) found.");
-            return new FileStream(memoPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 16_384);
+            return new FileStream(memoPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, short.MaxValue, FileOptions.SequentialScan);
         }
 
         public Stream OpenReadOnly()
