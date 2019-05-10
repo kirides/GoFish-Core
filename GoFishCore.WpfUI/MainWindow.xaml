@@ -54,7 +54,7 @@
         <!-- <WPF:WebView x:Name="webBrowser" Grid.Row="4" Visibility="Collapsed"/> -->
         <StatusBar Grid.Row="6">
             <StatusBarItem>
-                <Grid Width="200">
+                <Grid Width="300">
                     <ProgressBar IsIndeterminate="{Binding ProgressUnknown}" Minimum="0" Value="{Binding StatusCurrent}" Maximum="{Binding StatusTotal}"/>
                     <TextBlock Text="{Binding StatusText}" HorizontalAlignment="Stretch" TextAlignment="Center"/>
                 </Grid>

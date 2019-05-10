@@ -201,8 +201,15 @@ namespace GoFish.DataAccess
                         rowData[i] = "";
                         continue;
                     }
-
-                    memofs.Position = 4 + (offset * memoBlocksize);
+                    var targetPos = 4 + offset * memoBlocksize;
+                    if (memofs.Position < targetPos)
+                    {
+                        memofs.Seek(targetPos - memofs.Position, SeekOrigin.Current);
+                    }
+                    else
+                    {
+                        memofs.Position = 4 + (offset * memoBlocksize);
+                    }
                     var len = memofs.ReadInt(bigEndian: true);
 
                     if ((field.Flags & DbfFieldFlags.Binary) != 0)

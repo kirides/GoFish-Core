@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using GoFish.DataAccess;
@@ -56,8 +57,18 @@ namespace GoFishCore.WpfUI
                 { webBrowser.InvokeScript("eval", @"var elements = document.getElementsByTagName('mark'); if (elements.length > 0) { elements[0].scrollIntoView(true); }"); }
                 catch { /* Does not work with about:blank / non HTML pages */ }
             };
+            PreviewKeyDown += MainWindowCancelOnEsc;
         }
 
+        private void MainWindowCancelOnEsc(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Escape)
+            {
+                searchCancellation?.Cancel();
+            }
+        }
+
+        private CancellationTokenSource searchCancellation;
         private async void ButtonSearch_Click(object sender, RoutedEventArgs e)
         {
             if (!Application.Current.Dispatcher.CheckAccess())
@@ -71,8 +82,9 @@ namespace GoFishCore.WpfUI
             {
                 try
                 {
+                    searchCancellation = new CancellationTokenSource();
                     btnSearch.IsEnabled = false;
-                    await Task.Run(() => SearchDirectory(directoryPath, text));
+                    await Task.Run(() => SearchDirectory(directoryPath, text, searchCancellation.Token));
                     // SearchDirectory(directoryPath, text);
                 }
                 catch (System.Exception ex)
@@ -80,11 +92,10 @@ namespace GoFishCore.WpfUI
                     MessageBox.Show(ex.Message);
                 }
                 btnSearch.IsEnabled = true;
-
             }
         }
 
-        private void SearchDirectory(string directoryPath, string text)
+        private void SearchDirectory(string directoryPath, string text, CancellationToken cancellationToken = default)
         {
             var files = Directory.EnumerateFiles(directoryPath, "*.*", SearchOption.AllDirectories)
                 .Where(path => path.EndsWith(".vcx", StringComparison.OrdinalIgnoreCase)
@@ -102,7 +113,9 @@ namespace GoFishCore.WpfUI
             var currentFile = 1;
             foreach (var file in files)
             {
-                StatusText = $"Processing File {currentFile++} of {fileCount}";
+                if (cancellationToken.IsCancellationRequested) break;
+
+                StatusText = $"Processing File {currentFile++} of {fileCount} (Cancel using ESC)";
                 StatusCurrent = currentFile;
                 var filename = Path.GetFileNameWithoutExtension(file);
                 var fileExtension = Path.GetExtension(file);

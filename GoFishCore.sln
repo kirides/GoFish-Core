@@ -7,9 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GoFishCore.WpfUI", "GoFishC
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GoFish.DataAccess", "GoFish.DataAccess\GoFish.DataAccess.csproj", "{CE4AE160-46F2-48EE-BB39-183D436AB31B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoFish.WpfUI", "GoFish.WpfUI\GoFish.WpfUI.csproj", "{DE31538D-64B2-48C0-92C8-EBDF87C24A04}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoFish.DataAccessTests", "GoFish.DataAccessTests\GoFish.DataAccessTests.csproj", "{1F85DB66-3FC6-45B3-850F-84CC3E6AF432}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GoFish.DataAccessTests", "GoFish.DataAccessTests\GoFish.DataAccessTests.csproj", "{1F85DB66-3FC6-45B3-850F-84CC3E6AF432}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -25,10 +23,6 @@ Global
 		{CE4AE160-46F2-48EE-BB39-183D436AB31B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CE4AE160-46F2-48EE-BB39-183D436AB31B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CE4AE160-46F2-48EE-BB39-183D436AB31B}.Release|Any CPU.Build.0 = Release|Any CPU
-		{DE31538D-64B2-48C0-92C8-EBDF87C24A04}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{DE31538D-64B2-48C0-92C8-EBDF87C24A04}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{DE31538D-64B2-48C0-92C8-EBDF87C24A04}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{DE31538D-64B2-48C0-92C8-EBDF87C24A04}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1F85DB66-3FC6-45B3-850F-84CC3E6AF432}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{1F85DB66-3FC6-45B3-850F-84CC3E6AF432}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1F85DB66-3FC6-45B3-850F-84CC3E6AF432}.Release|Any CPU.ActiveCfg = Release|Any CPU
