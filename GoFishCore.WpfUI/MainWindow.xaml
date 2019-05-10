@@ -35,7 +35,7 @@
             <TextBox IsReadOnly="True" Grid.Column="1" x:Name="txtBrowse"/>
             <Button Grid.Column="2" Content="..." Click="ButtonBrowse_Click"/>
         </Grid>
-        <Button x:Name="btnSearch" Grid.Row="2" Content="Search" FontSize="20" Click="ButtonSearch_Click"/>
+        <Button x:Name="btnSearch" IsEnabled="{Binding CanSearch}" Grid.Row="2" Content="Search" FontSize="20" Click="ButtonSearch_Click"/>
         <DataGrid x:Name="listSearchResults" AutoGenerateColumns="False" Grid.Row="3" ItemsSource="{Binding Models, IsAsync=True}" IsReadOnly="True" SelectionChanged="ListSearchResults_SelectionChanged"
             VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling"
             EnableRowVirtualization="True"

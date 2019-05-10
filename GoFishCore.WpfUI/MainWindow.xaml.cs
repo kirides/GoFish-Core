@@ -46,6 +46,14 @@ namespace GoFishCore.WpfUI
 
         private bool progressUnknown;
         public bool ProgressUnknown { get => progressUnknown; set => SetProperty(ref progressUnknown, value); }
+
+
+        private bool canSearch = true;
+        public bool CanSearch
+        {
+            get { return canSearch; }
+            set { SetProperty(ref canSearch, value); }
+        }
         
         public MainWindow()
         {
@@ -83,15 +91,14 @@ namespace GoFishCore.WpfUI
                 try
                 {
                     searchCancellation = new CancellationTokenSource();
-                    btnSearch.IsEnabled = false;
-                    await Task.Run(() => SearchDirectory(directoryPath, text, searchCancellation.Token));
-                    // SearchDirectory(directoryPath, text);
+                    CanSearch = false;
+                    await Task.Run(() => SearchDirectory(directoryPath, text, searchCancellation.Token)).ConfigureAwait(false);
                 }
                 catch (System.Exception ex)
                 {
                     MessageBox.Show(ex.Message);
                 }
-                btnSearch.IsEnabled = true;
+                CanSearch = true;
             }
         }
 
@@ -111,18 +118,21 @@ namespace GoFishCore.WpfUI
             var fileCount = files.Count();
             StatusTotal = fileCount;
             var currentFile = 1;
-            foreach (var file in files)
+            Parallel.ForEach(files, (file, state) =>
             {
-                if (cancellationToken.IsCancellationRequested) break;
+                if (cancellationToken.IsCancellationRequested) state.Stop();
 
-                StatusText = $"Processing File {currentFile++} of {fileCount} (Cancel using ESC)";
-                StatusCurrent = currentFile;
+                StatusText = $"Processing File {Interlocked.Increment(ref currentFile)} of {fileCount} (Cancel using ESC)";
+                //StatusCurrent = currentFile;
+                Interlocked.Exchange(ref statusCurrent, currentFile);
+                RaisePropertyChanged(nameof(StatusCurrent));
                 var filename = Path.GetFileNameWithoutExtension(file);
                 var fileExtension = Path.GetExtension(file);
                 var memo = Path.Combine(Path.GetDirectoryName(file), filename + GetExtension(fileExtension));
                 if (!File.Exists(memo))
                 {
-                    continue;
+                    
+                    return;
                 }
                 var dbf = new Dbf(file, memo, System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252));
                 var reader = new DbfReader(dbf, System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252));
@@ -143,7 +153,7 @@ namespace GoFishCore.WpfUI
                     LineContent = r.Content.GetLine(r.Line).Trim(),
                     //Filepath = Path.Combine(tmpDir.FullName, r.Library, $"{r.Class}.{r.Method}.{r.Line}.html")
                 }));
-            }
+            });
             StatusText = "";
             StatusCurrent = 0;
             StatusTotal = 100;

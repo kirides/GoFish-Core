@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 namespace GoFish.DataAccess.VisualFoxPro
@@ -7,11 +8,11 @@ namespace GoFish.DataAccess.VisualFoxPro
     {
         private readonly int size;
         private readonly Func<T> factory;
-        private readonly Queue<T> pool;
+        private readonly ConcurrentQueue<T> pool;
 
         public Pool(int size, Func<T> factory)
         {
-            pool = new Queue<T>(size);
+            pool = new ConcurrentQueue<T>();
             for (int i = 0; i < size; i++)
             {
                 pool.Enqueue(factory());
@@ -23,25 +24,18 @@ namespace GoFish.DataAccess.VisualFoxPro
 
         public T Rent()
         {
-            lock (pool)
+            if (!pool.TryDequeue(out var item))
             {
-                var item = pool.Dequeue();
-                if (item == default)
-                {
-                    item = factory();
-                }
-                return item;
+                item = factory();
             }
+            return item;
         }
 
         public void Return(T item)
         {
-            lock (pool)
+            if (pool.Count < size)
             {
-                if (pool.Count < size)
-                {
-                    pool.Enqueue(item);
-                }
+                pool.Enqueue(item);
             }
         }
     }

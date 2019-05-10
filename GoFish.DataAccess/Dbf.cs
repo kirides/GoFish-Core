@@ -41,12 +41,12 @@ namespace GoFish.DataAccess
         public Stream OpenMemo()
         {
             if (string.IsNullOrEmpty(memoPath)) throw new InvalidOperationException($"No associated MEMO-file ({DbfFilePathHelper.GetMemoExtension(Path.GetExtension(dbfPath))}) found.");
-            return new FileStream(memoPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, short.MaxValue, FileOptions.SequentialScan);
+            return new FileStream(memoPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, short.MaxValue, FileOptions.RandomAccess);
         }
 
         public Stream OpenReadOnly()
         {
-            return new FileStream(dbfPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 16_384);
+            return new FileStream(dbfPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 16_384, FileOptions.RandomAccess);
         }
 
         public DbfHeader GetHeader()
