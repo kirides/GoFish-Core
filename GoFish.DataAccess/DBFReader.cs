@@ -1,6 +1,7 @@
 ﻿using GoFish.DataAccess.Extensions;
 using GoFish.DataAccess.Helpers;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -9,13 +10,13 @@ namespace GoFish.DataAccess
 {
     public class DbfReader
     {
-        private delegate object RowHandler(int row, byte[] buffer, int offset, int count, Encoding encoding);
+        private delegate object RowHandler(int row, byte[] buffer, DbfField field, Encoding encoding);
         private readonly Dictionary<char, RowHandler> DbfTypeMap = new Dictionary<char, RowHandler>();
-
-        private static object CopyBuffer(int rowIndex, byte[] buffer, int offset, int count, Encoding encoding)
+        private static readonly ArrayPool<byte> bufferPool = ArrayPool<byte>.Shared;
+        private static object CopyBuffer(int rowIndex, byte[] buffer, DbfField field, Encoding encoding)
         {
-            var result = new byte[count];
-            Array.Copy(buffer, offset, result, 0, count);
+            var result = new byte[field.Length];
+            Array.Copy(buffer, field.Displacement, result, 0, result.Length);
             return result;
         }
 
@@ -26,32 +27,22 @@ namespace GoFish.DataAccess
 
         public DbfReader(Dbf dbf, Encoding textEncoding)
         {
-            DbfTypeMap.Add('C', (i, b, o, c, e) => e.GetString(b, o, c).TrimEnd('\0'));
-            DbfTypeMap.Add('V', (i, b, o, c, e) =>
-            { // TODO: FIXME - highly likely to return wrong results if VARCHAR field is 254 length
-                if (!(b.Length - (o + c) > 2)) return e.GetString(b, o, c);
-                var varCharLength = b[o + c - 1];
-                if (b[o + c - 2] == ' ' || !char.IsLetterOrDigit((char)b[o + c - 2]))
-                {
-                    return e.GetString(b, o, varCharLength);
-                }
-                return e.GetString(b, o, c);
-            });
-            DbfTypeMap.Add('M', (i, b, o, c, e) => BitConverter.ToInt32(b, o));
-            DbfTypeMap.Add('W', (i, b, o, c, e) => BitConverter.ToInt32(b, o));
-            DbfTypeMap.Add('G', (i, b, o, c, e) => BitConverter.ToInt32(b, o));
-            DbfTypeMap.Add('Y', (i, b, o, c, e) => BitConverter.ToInt64(b, o) / 10000m); // Stored as int64 with 4 implicit decimal places
-            DbfTypeMap.Add('D', (i, b, o, c, e) =>
+            DbfTypeMap.Add('C', (i, b, f, e) => e.GetString(b, f.Displacement, f.Length).TrimEnd('\0'));
+            DbfTypeMap.Add('M', (i, b, f, e) => BitConverter.ToInt32(b, f.Displacement));
+            DbfTypeMap.Add('W', (i, b, f, e) => BitConverter.ToInt32(b, f.Displacement));
+            DbfTypeMap.Add('G', (i, b, f, e) => BitConverter.ToInt32(b, f.Displacement));
+            DbfTypeMap.Add('Y', (i, b, f, e) => BitConverter.ToInt64(b, f.Displacement) / 10000m); // Stored as int64 with 4 implicit decimal places
+            DbfTypeMap.Add('D', (i, b, f, e) =>
             {
-                var dateStr = e.GetString(b, o, c).Trim(); return dateStr == "" ? DateTime.MinValue : DateTime.ParseExact(dateStr, "yyyyMMdd", null);
+                var dateStr = e.GetString(b, f.Displacement, f.Length).Trim(); return dateStr == "" ? DateTime.MinValue : DateTime.ParseExact(dateStr, "yyyyMMdd", null);
             });
-            DbfTypeMap.Add('T', (i, b, o, c, e) => JulianDateHelper.FromULongBuffer(b, o));
-            DbfTypeMap.Add('N', (i, b, o, c, e) => { var numStr = e.GetString(b, o, c).Trim(); return numStr == "" ? 0m : decimal.Parse(numStr); });
-            DbfTypeMap.Add('B', (i, b, o, c, e) => BitConverter.ToInt32(b, o));
-            DbfTypeMap.Add('O', (i, b, o, c, e) => BitConverter.ToDouble(b, o));
-            DbfTypeMap.Add('F', (i, b, o, c, e) => { var numStr = e.GetString(b, o, c).Trim(); return numStr == "" ? 0f : float.Parse(numStr); });
-            DbfTypeMap.Add('I', (i, b, o, c, e) => BitConverter.ToInt32(b, o));
-            DbfTypeMap.Add('L', (i, b, o, c, e) => BitConverter.ToBoolean(b, o));
+            DbfTypeMap.Add('T', (i, b, f, e) => JulianDateHelper.FromULongBuffer(b, f.Displacement));
+            DbfTypeMap.Add('N', (i, b, f, e) => { var numStr = e.GetString(b, f.Displacement, f.Length).Trim(); return numStr == "" ? 0m : decimal.Parse(numStr); });
+            DbfTypeMap.Add('B', (i, b, f, e) => BitConverter.ToInt32(b, f.Displacement));
+            DbfTypeMap.Add('O', (i, b, f, e) => BitConverter.ToDouble(b, f.Displacement));
+            DbfTypeMap.Add('F', (i, b, f, e) => { var numStr = e.GetString(b, f.Displacement, f.Length).Trim(); return numStr == "" ? 0f : float.Parse(numStr); });
+            DbfTypeMap.Add('I', (i, b, f, e) => BitConverter.ToInt32(b, f.Displacement));
+            DbfTypeMap.Add('L', (i, b, f, e) => BitConverter.ToBoolean(b, f.Displacement));
             DbfTypeMap.Add('Q', CopyBuffer);
             DbfTypeMap.Add('P', CopyBuffer);
 
@@ -61,7 +52,22 @@ namespace GoFish.DataAccess
 
             if (IsVisualFoxPro(dbfHeader))
             { // Special handling for VFP
-                DbfTypeMap['B'] = (i, b, o, c, e) => BitConverter.ToDouble(b, o);
+                DbfTypeMap['B'] = (i, b, f, e) => BitConverter.ToDouble(b, f.Displacement);
+                // _NullFlags
+                DbfTypeMap['0'] = (i, b, f, e) => b[f.Displacement];
+                // VarChar/VarBinary
+                DbfTypeMap['V'] = (i, b, f, e) =>
+                { // TODO: FIXME - highly likely to return wrong results if VARCHAR field is 254 length
+                    var o = f.Displacement;
+                    var c = f.Length;
+                    if (!(b.Length - (o + c) > 2)) return e.GetString(b, o, c);
+                    var varCharLength = b[o + c - 1];
+                    if (b[o + c - 2] == ' ' || !char.IsLetterOrDigit((char)b[o + c - 2]))
+                    {
+                        return (f.Flags & DbfFieldFlags.Binary) != 0 ? CopyBuffer(i, b, f, e) : e.GetString(b, o, varCharLength);
+                    }
+                    return (f.Flags & DbfFieldFlags.Binary) != 0 ? CopyBuffer(i, b, f, e) : e.GetString(b, o, c);
+                };
             }
         }
 
@@ -85,10 +91,10 @@ namespace GoFish.DataAccess
 
         public int ReadRowRaw(int index, byte[] buffer, int offset, bool includeDeleted = false)
         {
-			if (buffer.Length - offset < dbfHeader.RecordLength)
-			{
-				throw new ArgumentException($"Buffer is not large enough {buffer.Length - offset} / {dbfHeader.RecordLength}");
-			}
+            if (buffer.Length - offset < dbfHeader.RecordLength)
+            {
+                throw new ArgumentException($"Buffer is not large enough {buffer.Length - offset} / {dbfHeader.RecordLength}");
+            }
             using (var fs = dbf.OpenReadOnly())
             {
                 fs.Position = dbfHeader.HeaderSize + (dbfHeader.RecordLength * index);
@@ -161,17 +167,18 @@ namespace GoFish.DataAccess
             for (var i = 0; i < rowData.Length; i++)
             {
                 var field = dbfHeader.Fields[i];
+                //TrySetNullData(rowBuf, rowData, field);
                 var hasHandler = DbfTypeMap.TryGetValue(field.Type, out var handler);
                 if (!hasHandler) continue;
 
                 if (field.Type == 'M' || field.Type == 'W' || field.Type == 'G')
                 {
-                    var memoPointer = handler(index, rowBuf, field.Displacement, field.Length, TextEncoding);
+                    var memoPointer = handler(index, rowBuf, field, TextEncoding);
                     rowData[i] = $"MEMO@{memoPointer}";
                 }
                 else
                 {
-                    rowData[i] = handler(index, rowBuf, field.Displacement, field.Length, TextEncoding);
+                    rowData[i] = handler(index, rowBuf, field, TextEncoding);
                 }
             }
             return rowData;
@@ -182,12 +189,13 @@ namespace GoFish.DataAccess
             for (var i = 0; i < rowData.Length; i++)
             {
                 var field = dbfHeader.Fields[i];
+                //TrySetNullData(rowBuf, rowData, field);
                 var hasHandler = DbfTypeMap.TryGetValue(field.Type, out var handler);
                 if (!hasHandler) continue;
 
                 if (field.Type == 'M')
                 {
-                    var offset = (int)handler(index, rowBuf, field.Displacement, field.Length, TextEncoding);
+                    var offset = (int)handler(index, rowBuf, field, TextEncoding);
                     if (offset == 0)
                     {
                         rowData[i] = "";
@@ -196,61 +204,107 @@ namespace GoFish.DataAccess
 
                     memofs.Position = 4 + (offset * memoBlocksize);
                     var len = memofs.ReadInt(bigEndian: true);
-                    var memoBuf = new byte[len];
-                    memofs.Read(memoBuf, 0, len);
-                    rowData[i] = TextEncoding.GetString(memoBuf);
+
+                    if ((field.Flags & DbfFieldFlags.Binary) != 0)
+                    {
+                        var memoBuf = new byte[len];
+                        memofs.Read(memoBuf, 0, len);
+                        rowData[i] = memoBuf;
+                    }
+                    else
+                    {
+                        var memoBuf = bufferPool.Rent(len);
+                        memofs.Read(memoBuf, 0, len);
+                        try
+                        {
+                            rowData[i] = TextEncoding.GetString(memoBuf, 0, len);
+                        }
+                        finally
+                        {
+                            bufferPool.Return(memoBuf);
+                        }
+                    }
                 }
                 else
                 {
-                    rowData[i] = handler(index, rowBuf, field.Displacement, field.Length, TextEncoding);
+                    rowData[i] = handler(index, rowBuf, field, TextEncoding);
                 }
             }
             return rowData;
         }
 
+        private void TrySetNullData(byte[] rowBuf, object[] rowData, DbfField field)
+        {
+            if ((field.Flags & DbfFieldFlags.System) != 0
+                    && field.Name.Equals("_NullFlags", StringComparison.Ordinal))
+            {
+                byte nullFlags = rowBuf[field.Displacement];
+                byte fcCount = 1;
+                for (int fc = 0; fc < dbfHeader.Fields.Count; fc++)
+                {
+                    var f = dbfHeader.Fields[fc];
+                    if ((f.Flags & DbfFieldFlags.Null) != 0)
+                    {
+                        if ((nullFlags & fcCount) != 0)
+                        {
+                            rowData[fc] = null;
+                        }
+                        fcCount <<= 1;
+                    }
+                }
+            }
+        }
+
         public IEnumerable<object[]> ReadRows(bool includeMemo = false, bool includeDeleted = false)
         {
             return ReadRows(returnTrue, includeMemo, includeDeleted);
-
             bool returnTrue(int idx, object[] row) => true;
         }
         public IEnumerable<object[]> ReadRows(Func<int, object[], bool> predicate, bool includeMemo = false, bool includeDeleted = false)
         {
             using (var fs = dbf.OpenReadOnly())
             {
-                var rowBuf = new byte[dbfHeader.RecordLength];
-                fs.Position = dbfHeader.HeaderSize;
-                if (includeMemo && (dbfHeader.Flags & DbfHeaderFlags.Memo) != 0)
+                //var rowBuf = new byte[dbfHeader.RecordLength];
+                var rowBuf = bufferPool.Rent(dbfHeader.RecordLength);
+                try
                 {
-                    using (var memofs = dbf.OpenMemo())
+                    fs.Position = dbfHeader.HeaderSize;
+                    if (includeMemo && (dbfHeader.Flags & DbfHeaderFlags.Memo) != 0)
                     {
-                        memofs.Position = 6;
-                        var memoBlocksize = memofs.ReadShort(bigEndian: true);
+                        using (var memofs = dbf.OpenMemo())
+                        {
+                            memofs.Position = 6;
+                            var memoBlocksize = memofs.ReadShort(bigEndian: true);
+                            for (var index = 0; index < dbfHeader.RecordCount; index++)
+                            {
+                                var read = fs.Read(rowBuf, 0, dbfHeader.RecordLength);
+                                if (read != dbfHeader.RecordLength)
+                                    throw new InvalidOperationException($"Could not read Row at Index {index}");
+                                if (rowBuf[0] == 0x2A && !includeDeleted) continue; // Entry is marked Deleted(*)
+
+                                var rowData = ReadRowFromBufferMemo(rowBuf, index, memofs, memoBlocksize);
+                                if (predicate(index, rowData))
+                                    yield return rowData;
+                            }
+                        }
+                    }
+                    else
+                    {
                         for (var index = 0; index < dbfHeader.RecordCount; index++)
                         {
                             var read = fs.Read(rowBuf, 0, dbfHeader.RecordLength);
                             if (read != dbfHeader.RecordLength)
                                 throw new InvalidOperationException($"Could not read Row at Index {index}");
-                            if (rowBuf[0] == '*' && !includeDeleted) continue; // Entry is marked Deleted(*)
 
-                            var rowData = ReadRowFromBufferMemo(rowBuf, index, memofs, memoBlocksize);
-                            if (predicate(index, rowData))
-                                yield return rowData;
+                            if (rowBuf[0] == 0x2A && !includeDeleted) continue; // Entry is marked Deleted(*)
+                            var rowData = ReadRowFromBuffer(rowBuf, index);
+                            yield return rowData;
                         }
                     }
                 }
-                else
+                finally
                 {
-                    for (var index = 0; index < dbfHeader.RecordCount; index++)
-                    {
-                        var read = fs.Read(rowBuf, 0, dbfHeader.RecordLength);
-                        if (read != dbfHeader.RecordLength)
-                            throw new InvalidOperationException($"Could not read Row at Index {index}");
-
-                        if (rowBuf[0] == '*' && !includeDeleted) continue; // Entry is marked Deleted(*)
-                        var rowData = ReadRowFromBuffer(rowBuf, index);
-                        yield return rowData;
-                    }
+                    bufferPool.Return(rowBuf);
                 }
             }
         }

@@ -117,7 +117,7 @@ namespace GoFishCore.WpfUI
                 var library = ClassLibrary.FromRows(filename, rows);
                 rows = null;
 
-                var results = searcher.Search(library, text, ignoreCase: true);
+                var results = searcher.Search(library, text, ignoreCase: false);
 
                 //searcher.SaveResults(results, r => $"{r.Class}.{ r.Method}.{r.Line}", tmpDir.FullName);
                 Models.AddRange(results.Select(r => new SearchModel

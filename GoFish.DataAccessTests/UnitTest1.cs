@@ -14,9 +14,11 @@ namespace GoFish.DataAccessTests
         [Fact]
         public void Test1()
         {
-            var dbf = new Dbf(Path.Combine(testDir, "dbTable2.dbf"));
+            //var dbf = new Dbf(Path.Combine(testDir, "dbTable2.dbf"));
+            var dbf = new Dbf(Path.Combine(@"C:\vfp projects\WindowsShell", "varchr.dbf"));
             var reader = new DbfReader(dbf);
             var row = reader.ReadRow(0);
+            var row2 = reader.ReadRow(1);
 
             var header = dbf.GetHeader();
             //var rows = reader.ReadRows(includeMemo: true).ToList();

@@ -69,12 +69,15 @@ namespace GoFish.DataAccess
                     case DbfType.VisualFoxPro:
                     case DbfType.VisualFoxProAutoInc:
                     case DbfType.VisualFoxProVar:
-                        FillBacklink(fs, header);
                         DatabaseTable dbTable = null;
-                        if (!string.IsNullOrEmpty(header.Backlink))
+                        if ((header.Flags & DbfHeaderFlags.DBC) != 0)
                         {
-                            var db = Database.FromDbf(new Dbf(Path.Combine(Path.GetDirectoryName(dbfPath), header.Backlink)));
-                            dbTable = db.Tables.Find(t => t.Name.Equals(Path.GetFileNameWithoutExtension(dbfPath), StringComparison.OrdinalIgnoreCase));
+                            FillBacklink(fs, header);
+                            if (!string.IsNullOrEmpty(header.Backlink))
+                            {
+                                var db = Database.FromDbf(new Dbf(Path.Combine(Path.GetDirectoryName(dbfPath), header.Backlink)));
+                                dbTable = db.Tables.Find(t => t.Name.Equals(Path.GetFileNameWithoutExtension(dbfPath), StringComparison.OrdinalIgnoreCase));
+                            }
                         }
                         FillVFPFields(fs, header, dbTable);
                         break;
