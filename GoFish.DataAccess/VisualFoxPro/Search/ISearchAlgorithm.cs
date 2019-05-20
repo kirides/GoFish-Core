@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
@@ -11,14 +12,10 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
 
     public class PlainTextAlgorithm : ISearchAlgorithm
     {
-        public Dictionary<string, BoyerMoore> SearcherCache { get; set; } = new Dictionary<string, BoyerMoore>();
+        private readonly ConcurrentDictionary<string, BoyerMoore> searcherCache = new ConcurrentDictionary<string, BoyerMoore>();
         public virtual IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false)
         {
-            if (!SearcherCache.TryGetValue(text, out var boyerMoore))
-            {
-                boyerMoore = new BoyerMoore(text, ignoreCase);
-                SearcherCache[text] = boyerMoore;
-            }
+            var boyerMoore = searcherCache.GetOrAdd(text, t => new BoyerMoore(t, ignoreCase));
 
             foreach (var c in lib.Classes)
             {
