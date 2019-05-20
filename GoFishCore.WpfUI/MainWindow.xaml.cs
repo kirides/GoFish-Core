@@ -20,6 +20,7 @@ namespace GoFishCore.WpfUI
     {
         public SpeedObservableCollection<SearchModel> Models { get; set; } = new SpeedObservableCollection<SearchModel>();
         private static readonly Searcher searcher = new Searcher(new PlainTextAlgorithm());
+        private List<(string extension, ClassLibrary lib)> VfpLibCache = null;
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected void RaisePropertyChanged([CallerMemberName]string propertyName = null)
@@ -47,6 +48,8 @@ namespace GoFishCore.WpfUI
         private bool progressUnknown;
         public bool ProgressUnknown { get => progressUnknown; set => SetProperty(ref progressUnknown, value); }
 
+        private bool caseSensitive;
+        public bool CaseSensitive { get => caseSensitive; set => SetProperty(ref caseSensitive, value); }
 
         private bool canSearch = true;
         public bool CanSearch
@@ -101,27 +104,54 @@ namespace GoFishCore.WpfUI
                 CanSearch = true;
             }
         }
-
+        private void BtnSearch_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.RightButton == System.Windows.Input.MouseButtonState.Pressed)
+            {
+                VfpLibCache?.Clear();
+                VfpLibCache = null;
+            }
+        }
         private void SearchDirectory(string directoryPath, string text, CancellationToken cancellationToken = default)
         {
-            var files = Directory.EnumerateFiles(directoryPath, "*.*", SearchOption.AllDirectories)
-                .Where(path => path.EndsWith(".vcx", StringComparison.OrdinalIgnoreCase)
-                || path.EndsWith(".scx", StringComparison.OrdinalIgnoreCase));
-
+            Models.SuspendCollectionChangeNotification();
+            Models.Clear();
+            if (VfpLibCache != null)
+            {
+                foreach (var entry in VfpLibCache)
+                {
+                    var results = searcher.Search(entry.lib, text, ignoreCase: !CaseSensitive);
+                    Models.AddRange(results.Select(r => new SearchModel
+                    {
+                        Library = r.Library + entry.extension,
+                        Class = r.Class,
+                        Method = r.Method,
+                        Line = r.Line + 1,
+                        Content = r.Content,
+                        LineContent = r.Content.GetLine(r.Line).Trim(),
+                    }));
+                }
+                Models.ResumeCollectionChangeNotification();
+                Models.RaiseCollectionChanged();
+                return;
+            }
 
             //var tempDir = Path.Combine(Path.GetTempPath(), "gofish-core");
             //try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); }
             //catch { /* Nom nom nom */ }
             //var tmpDir = Directory.CreateDirectory(tempDir);
-            Models.SuspendCollectionChangeNotification();
-            Models.Clear();
+
+            var files = Directory.EnumerateFiles(directoryPath, "*.*", SearchOption.AllDirectories)
+                .Where(path => path.EndsWith(".vcx", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".scx", StringComparison.OrdinalIgnoreCase));
+
             var fileCount = files.Count();
             StatusTotal = fileCount;
             var currentFile = 1;
+            var cache = new System.Collections.Concurrent.BlockingCollection<(string, ClassLibrary)>(fileCount);
             Parallel.ForEach(files, (file, state) =>
             {
                 if (cancellationToken.IsCancellationRequested) state.Stop();
-
                 StatusText = $"Processing File {Interlocked.Increment(ref currentFile)} of {fileCount} (Cancel using ESC)";
                 //StatusCurrent = currentFile;
                 Interlocked.Exchange(ref statusCurrent, currentFile);
@@ -131,16 +161,24 @@ namespace GoFishCore.WpfUI
                 var memo = Path.Combine(Path.GetDirectoryName(file), filename + GetExtension(fileExtension));
                 if (!File.Exists(memo))
                 {
-                    
                     return;
                 }
                 var dbf = new Dbf(file, memo, System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252));
                 var reader = new DbfReader(dbf, System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252));
                 var rows = reader.ReadRows((i, o) => (string)o[Constants.VCX.BODY] != "", includeMemo: true);
                 var library = ClassLibrary.FromRows(filename, rows);
+                library.Classes.ForEach(x =>
+                {
+                    x.BaseClass = null;
+                    foreach (var m in x.Methods)
+                    {
+                        m.Parameters.Clear();
+                    }
+                });
+                cache.Add((fileExtension, library));
                 rows = null;
 
-                var results = searcher.Search(library, text, ignoreCase: false);
+                var results = searcher.Search(library, text, ignoreCase: !CaseSensitive);
 
                 //searcher.SaveResults(results, r => $"{r.Class}.{ r.Method}.{r.Line}", tmpDir.FullName);
                 Models.AddRange(results.Select(r => new SearchModel
@@ -154,11 +192,11 @@ namespace GoFishCore.WpfUI
                     //Filepath = Path.Combine(tmpDir.FullName, r.Library, $"{r.Class}.{r.Method}.{r.Line}.html")
                 }));
             });
+            VfpLibCache = cache.ToList();
             StatusText = "";
             StatusCurrent = 0;
             StatusTotal = 100;
             Models.ResumeCollectionChangeNotification();
-            //ClearGC();
             Models.RaiseCollectionChanged();
         }
 

@@ -14,14 +14,18 @@ namespace GoFish.DataAccess.VisualFoxPro
         {
             var form = new Class
             {
-                Name = (string)row[6],
-                BaseClass = (string)row[3]
+                Name = (string)row[Constants.VCX.NAME],
+                BaseClass = (string)row[Constants.VCX.CLASS]
             };
-            var propertyBody = new StringReader((string)row[8]);
-            form.ParseProperties(propertyBody);
+            using (var propertyBody = new StringReader((string)row[Constants.VCX.PROPERTIES]))
+            {
+                form.ParseProperties(propertyBody);
+            }
 
-            var methodBodies = new StringReader((string)row[10]);
-            form.ParseMethods(methodBodies);
+            using (var methodBodies = new StringReader((string)row[Constants.VCX.BODY]))
+            {
+                form.ParseMethods(methodBodies);
+            }
 
             return form;
         }

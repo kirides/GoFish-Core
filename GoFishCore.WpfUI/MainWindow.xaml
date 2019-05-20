@@ -23,7 +23,14 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="Suche:"/>
-            <TextBox Grid.Column="1" Text="Search Value" x:Name="txtSearch"/>
+            <Grid Grid.Column="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0"  Text="Search Value" x:Name="txtSearch"/>
+                <CheckBox Grid.Column="1" VerticalAlignment="Center" Content="Case Sensitive" IsChecked="{Binding CaseSensitive}"  Margin="0,0,5,0" />
+            </Grid>
         </Grid>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
@@ -35,7 +42,7 @@
             <TextBox IsReadOnly="True" Grid.Column="1" x:Name="txtBrowse"/>
             <Button Grid.Column="2" Content="..." Click="ButtonBrowse_Click"/>
         </Grid>
-        <Button x:Name="btnSearch" IsEnabled="{Binding CanSearch}" Grid.Row="2" Content="Search" FontSize="20" Click="ButtonSearch_Click"/>
+        <Button x:Name="btnSearch" IsEnabled="{Binding CanSearch}" Grid.Row="2" ToolTip="Rightclick to clear cache" Content="Search" FontSize="20" MouseDown="BtnSearch_MouseDown" Click="ButtonSearch_Click"/>
         <DataGrid x:Name="listSearchResults" AutoGenerateColumns="False" Grid.Row="3" ItemsSource="{Binding Models, IsAsync=True}" IsReadOnly="True" SelectionChanged="ListSearchResults_SelectionChanged"
             VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling"
             EnableRowVirtualization="True"

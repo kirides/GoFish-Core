@@ -11,9 +11,15 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
 
     public class PlainTextAlgorithm : ISearchAlgorithm
     {
+        public Dictionary<string, BoyerMoore> SearcherCache { get; set; } = new Dictionary<string, BoyerMoore>();
         public virtual IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false)
         {
-            var comparison = ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (!SearcherCache.TryGetValue(text, out var boyerMoore))
+            {
+                boyerMoore = new BoyerMoore(text, ignoreCase);
+                SearcherCache[text] = boyerMoore;
+            }
+
             foreach (var c in lib.Classes)
             {
                 for (int i = 0; i < c.Methods.Count; i++)
@@ -25,7 +31,7 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
                     int lastLines = 0;
                     do
                     {
-                        idx = code.Span.IndexOf(text.AsSpan(), comparison);
+                        idx = boyerMoore.IndexOf(code.Span);
                         if (idx == -1)
                         {
                             continue;
@@ -48,9 +54,10 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
         protected int CountNewlines(ReadOnlySpan<char> content)
         {
             var count = 0;
-            foreach (var c in content)
+            for (int i = 0; i < content.Length; i++)
             {
-                if (c == '\n') count++;
+                if (content[i] == '\n') count++;
+
             }
             return count;
         }
