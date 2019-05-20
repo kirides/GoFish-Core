@@ -12,10 +12,11 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
 
     public class PlainTextAlgorithm : ISearchAlgorithm
     {
-        private readonly ConcurrentDictionary<string, BoyerMoore> searcherCache = new ConcurrentDictionary<string, BoyerMoore>();
+        private readonly ConcurrentDictionary<(string pattern, bool ignoreCase), BoyerMoore> searcherCache 
+            = new ConcurrentDictionary<(string, bool), BoyerMoore>();
         public virtual IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false)
         {
-            var boyerMoore = searcherCache.GetOrAdd(text, t => new BoyerMoore(t, ignoreCase));
+            var boyerMoore = searcherCache.GetOrAdd((text, ignoreCase), (c) => new BoyerMoore(c.pattern, c.ignoreCase));
 
             foreach (var c in lib.Classes)
             {
