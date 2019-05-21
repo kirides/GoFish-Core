@@ -27,7 +27,7 @@ namespace GoFishCore.WpfUI
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         protected bool SetProperty<T>(ref T field, T value, [CallerMemberName]string propertyName = null)
         {
-            if (EqualityComparer<T>.Default.Equals(field,value))
+            if (EqualityComparer<T>.Default.Equals(field, value))
             {
                 return false;
             }
@@ -57,7 +57,7 @@ namespace GoFishCore.WpfUI
             get { return canSearch; }
             set { SetProperty(ref canSearch, value); }
         }
-        
+
         public MainWindow()
         {
             DataContext = this;
@@ -118,19 +118,32 @@ namespace GoFishCore.WpfUI
             Models.Clear();
             if (VfpLibCache != null)
             {
-                foreach (var entry in VfpLibCache)
+                int currentCachedFile = 0;
+                int cachedFilesCount = VfpLibCache.Count;
+                StatusTotal = cachedFilesCount;
+                Parallel.ForEach(VfpLibCache, (entry, state) =>
                 {
+                    if (cancellationToken.IsCancellationRequested) state.Stop();
+                    StatusText = $"[Cache] Processing File {Interlocked.Increment(ref currentCachedFile)} of {cachedFilesCount} (Cancel using ESC)";
+                    Interlocked.Exchange(ref statusCurrent, currentCachedFile);
+                    RaisePropertyChanged(nameof(StatusCurrent));
                     var results = searcher.Search(entry.lib, text, ignoreCase: !CaseSensitive);
-                    Models.AddRange(results.Select(r => new SearchModel
+                    lock (Models)
                     {
-                        Library = r.Library + entry.extension,
-                        Class = r.Class,
-                        Method = r.Method,
-                        Line = r.Line + 1,
-                        Content = r.Content,
-                        LineContent = r.Content.GetLine(r.Line).Trim(),
-                    }));
-                }
+                        Models.AddRange(results.Select(r => new SearchModel
+                        {
+                            Library = r.Library + entry.extension,
+                            Class = r.Class,
+                            Method = r.Method,
+                            Line = r.Line + 1,
+                            Content = r.Content,
+                            LineContent = r.Content.GetLine(r.Line).Trim(),
+                        }));
+                    }
+                });
+                StatusText = "";
+                StatusCurrent = 0;
+                StatusTotal = 100;
                 Models.ResumeCollectionChangeNotification();
                 Models.RaiseCollectionChanged();
                 return;
@@ -147,13 +160,13 @@ namespace GoFishCore.WpfUI
 
             var fileCount = files.Count();
             StatusTotal = fileCount;
-            var currentFile = 1;
+            var currentFile = 0;
             var cache = new System.Collections.Concurrent.BlockingCollection<(string, ClassLibrary)>(fileCount);
+            var errors = new System.Collections.Concurrent.BlockingCollection<string>();
             Parallel.ForEach(files, (file, state) =>
             {
                 if (cancellationToken.IsCancellationRequested) state.Stop();
                 StatusText = $"Processing File {Interlocked.Increment(ref currentFile)} of {fileCount} (Cancel using ESC)";
-                //StatusCurrent = currentFile;
                 Interlocked.Exchange(ref statusCurrent, currentFile);
                 RaisePropertyChanged(nameof(StatusCurrent));
                 var filename = Path.GetFileNameWithoutExtension(file);
@@ -163,35 +176,55 @@ namespace GoFishCore.WpfUI
                 {
                     return;
                 }
-                var dbf = new Dbf(file, memo, System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252));
-                var reader = new DbfReader(dbf, System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252));
-                var rows = reader.ReadRows((i, o) => (string)o[Constants.VCX.BODY] != "", includeMemo: true);
-                var library = ClassLibrary.FromRows(filename, rows);
-                library.Classes.ForEach(x =>
+                ClassLibrary library;
+                try
                 {
-                    x.BaseClass = null;
-                    foreach (var m in x.Methods)
+                    var dbf = new Dbf(file, memo, System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252));
+                    var reader = new DbfReader(dbf, System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252));
+                    var rows = reader.ReadRows((i, o) => (string)o[Constants.VCX.BODY] != "", includeMemo: true);
+                    library = ClassLibrary.FromRows(filename, rows);
+                    library.Classes.ForEach(x =>
                     {
-                        m.Parameters.Clear();
-                    }
-                });
-                cache.Add((fileExtension, library));
-                rows = null;
+                        x.BaseClass = null;
+                        foreach (var m in x.Methods)
+                        {
+                            m.Parameters.Clear();
+                        }
+                    });
+                    cache.Add((fileExtension, library));
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(ex.Message);
+                    return;
+                }
 
                 var results = searcher.Search(library, text, ignoreCase: !CaseSensitive);
 
-                //searcher.SaveResults(results, r => $"{r.Class}.{ r.Method}.{r.Line}", tmpDir.FullName);
-                Models.AddRange(results.Select(r => new SearchModel
+                lock (Models)
                 {
-                    Library = r.Library + fileExtension,
-                    Class = r.Class,
-                    Method = r.Method,
-                    Line = r.Line + 1,
-                    Content = r.Content,
-                    LineContent = r.Content.GetLine(r.Line).Trim(),
-                    //Filepath = Path.Combine(tmpDir.FullName, r.Library, $"{r.Class}.{r.Method}.{r.Line}.html")
-                }));
+                    //searcher.SaveResults(results, r => $"{r.Class}.{ r.Method}.{r.Line}", tmpDir.FullName);
+                    Models.AddRange(results.Select(r => new SearchModel
+                    {
+                        Library = r.Library + fileExtension,
+                        Class = r.Class,
+                        Method = r.Method,
+                        Line = r.Line + 1,
+                        Content = r.Content,
+                        LineContent = r.Content.GetLine(r.Line).Trim(),
+                        //Filepath = Path.Combine(tmpDir.FullName, r.Library, $"{r.Class}.{r.Method}.{r.Line}.html")
+                    }));
+                }
             });
+            if (errors.Count > 0)
+            {
+                MessageBox.Show(
+                        "Fehler beim Dursuchen der folgenden Dateien:" +
+                            Environment.NewLine +
+                            Environment.NewLine +
+                            string.Join($"{Environment.NewLine}- ", errors),
+                        "Fehler beim Durchsuchen");
+            }
             VfpLibCache = cache.ToList();
             StatusText = "";
             StatusCurrent = 0;
