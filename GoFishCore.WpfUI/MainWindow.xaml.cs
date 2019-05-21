@@ -83,15 +83,17 @@ namespace GoFishCore.WpfUI
             string filePath = "";
             if (CommonFileDialog.IsPlatformSupported)
             {
-                CommonOpenFileDialog ofd = new CommonOpenFileDialog
+                using (var ofd = new CommonOpenFileDialog
                 {
                     IsFolderPicker = true,
                     EnsurePathExists = true,
                     EnsureFileExists = true
-                };
-                if (ofd.ShowDialog() == CommonFileDialogResult.Ok)
+                })
                 {
-                    filePath = ofd.FileName;
+                    if (ofd.ShowDialog() == CommonFileDialogResult.Ok)
+                    {
+                        filePath = ofd.FileName;
+                    }
                 }
             }
             if (!string.IsNullOrWhiteSpace(filePath))

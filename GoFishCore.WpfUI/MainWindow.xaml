@@ -3,7 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:WPF="clr-namespace:Microsoft.Toolkit.Wpf.UI.Controls;assembly=Microsoft.Toolkit.Wpf.UI.Controls.WebView"
         xmlns:local="clr-namespace:GoFishCore.WpfUI"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
@@ -57,8 +56,6 @@
         </DataGrid>
         <GridSplitter Height="5" HorizontalAlignment="Stretch" Grid.Row="4"/>
         <WebBrowser x:Name="webBrowser" Grid.Row="5" Visibility="Collapsed"/>
-        <!-- <WPF:WebViewCompatible x:Name="webBrowser" Grid.Row="4" Visibility="Collapsed"/> -->
-        <!-- <WPF:WebView x:Name="webBrowser" Grid.Row="4" Visibility="Collapsed"/> -->
         <StatusBar Grid.Row="6">
             <StatusBarItem>
                 <Grid Width="300">
