@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace GoFish.DataAccess.VisualFoxPro.Search
 {
     public class Searcher
     {
+        private static Pool<StringBuilder> sbPool = new Pool<StringBuilder>(1, () => new StringBuilder(4096));
+
         private static readonly string templatePre = @"<!-- saved from url=(0014)about:internet -->
 <!DOCTYPE html>
 <html lang=""en"">
@@ -30,7 +30,7 @@ pre[class*=language-].line-numbers{position:relative;padding-left:3.8em;counter-
 <body>
 <pre class=""line-numbers""><code class=""language-foxpro"">";
         private readonly ISearchAlgorithm searchAlgorithm;
-        const string templatePost = @"</code></pre>
+        private const string templatePost = @"</code></pre>
 <script>
 /* PrismJS 1.16.0
 https://prismjs.com/download.html#themes=prism&plugins=keep-markup */
@@ -53,7 +53,7 @@ var _self=""undefined""!=typeof window?window:""undefined""!=typeof WorkerGlobal
 
         public IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false)
         {
-            return searchAlgorithm.Search(lib, text, ignoreCase);
+            return this.searchAlgorithm.Search(lib, text, ignoreCase);
         }
 
         /// <summary>
@@ -63,72 +63,70 @@ var _self=""undefined""!=typeof window?window:""undefined""!=typeof WorkerGlobal
         /// <param name="directoryPath"></param>
         public void SaveResults(IEnumerable<SearchResult> searchResults, Func<SearchResult, string> fileNameTemplate, string directoryPath)
         {
-            foreach (var r in searchResults)
+            foreach (SearchResult r in searchResults)
             {
-                var dirPath = Directory.CreateDirectory(Path.Combine(directoryPath, r.Library));
+                DirectoryInfo dirPath = Directory.CreateDirectory(Path.Combine(directoryPath, r.Library));
 
-                HTMLifySurroundLines(r.Content,
+                HTMLifySurroundLinesToFile(r.Content,
                     Path.Combine(directoryPath, r.Library, $"{fileNameTemplate(r)}.html"), r.Line, "<mark>", "</mark>");
             }
         }
 
-        private void HTMLifySurroundLines(string source, string filePath, int line, string prefix, string suffix = null)
+        private static void HTMLifySurroundLines<TWriter>(
+            TWriter writer,
+            Action<TWriter, string> writeLine,
+            Action<TWriter, string> write,
+            string source,
+            int line,
+            string prefix,
+            string suffix = null,
+            int tabSize = 4)
         {
-            using (var sr = new StringReader(source))
-            using (var sw = new StreamWriter(filePath, false, Encoding.UTF8))
+            using (StringReader sr = new StringReader(source))
             {
-                sw.Write(templatePre);
+                write(writer, templatePre);
                 int lineNo = 0;
                 while (sr.ReadLine() is string l)
                 {
+                    int lineLen = l.Length;
+                    l = l.TrimStart();
+                    if (l.Length < lineLen)
+                    {
+                        l = new string(' ', (lineLen - l.Length) * tabSize) + l;
+                    }
+
                     if (line == lineNo)
                     {
-                        sw.Write(prefix);
-                        sw.Write(l.Replace("<", "&lt;").Replace(">", "&gt;"));
-                        sw.WriteLine(suffix ?? prefix);
+                        write(writer, prefix);
+                        write(writer, l.Replace("<", "&lt;").Replace(">", "&gt;"));
+                        writeLine(writer, suffix ?? prefix);
                     }
                     else
                     {
-                        sw.WriteLine(l.Replace("<", "&lt;").Replace(">", "&gt;"));
+                        writeLine(writer, l.Replace("<", "&lt;").Replace(">", "&gt;"));
                     }
                     lineNo++;
                 }
-                sw.Write(templatePost);
+                write(writer, templatePost);
             }
         }
-		
-		private static Pool<StringBuilder> sbPool = new Pool<StringBuilder>(1, () => new StringBuilder(4096));
-		public string HTMLifySurroundLines(string source, int line, string prefix, string suffix = null)
+
+        private static void HTMLifySurroundLinesToFile(string source, string filePath, int line, string prefix, string suffix = null, int tabSize = 4)
         {
-			var sb = sbPool.Rent();
-            using (var sr = new StringReader(source))
+            using (StreamWriter sw = new StreamWriter(filePath, false, Encoding.UTF8))
             {
-                sb.Append(templatePre);
-                int lineNo = 0;
-                while (sr.ReadLine() is string l)
-                {
-					var lineLen = l.Length;
-					l = l.TrimStart();
-					if(l.Length < lineLen)
-						l = new string(' ', (lineLen - l.Length) * 4) + l;
-                    if (line == lineNo)
-                    {
-                        sb.Append(prefix);
-                        sb.Append(l.Replace("<", "&lt;").Replace(">", "&gt;"));
-                        sb.AppendLine(suffix ?? prefix);
-                    }
-                    else
-                    {
-                        sb.AppendLine(l.Replace("<", "&lt;").Replace(">", "&gt;"));
-                    }
-                    lineNo++;
-                }
-                sb.Append(templatePost);
+                HTMLifySurroundLines(sw, (w, v) => w.WriteLine(v), (w, v) => w.Write(v), source, line, prefix, suffix, tabSize);
             }
-			var result = sb.ToString();
-			sb.Clear();
-			sbPool.Return(sb);
-			return result;
+        }
+
+        public static string HTMLifySurroundLines(string source, int line, string prefix, string suffix = null, int tabSize = 4)
+        {
+            StringBuilder sb = sbPool.Rent();
+            HTMLifySurroundLines(sb, (w, v) => w.AppendLine(v), (w, v) => w.Append(v), source, line, prefix, suffix, tabSize);
+            string result = sb.ToString();
+            sb.Clear();
+            sbPool.Return(sb);
+            return result;
         }
     }
 }
