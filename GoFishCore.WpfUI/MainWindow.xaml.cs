@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -13,6 +11,7 @@ using GoFish.DataAccess;
 using GoFish.DataAccess.VisualFoxPro;
 using GoFish.DataAccess.VisualFoxPro.Search;
 using Microsoft.WindowsAPICodePack.Dialogs;
+using System.Text.Json.Serialization;
 
 namespace GoFishCore.WpfUI
 {
@@ -51,6 +50,12 @@ namespace GoFishCore.WpfUI
         private bool caseSensitive;
         public bool CaseSensitive { get => caseSensitive; set => SetProperty(ref caseSensitive, value); }
 
+        private string directoryPath;
+        public string DirectoryPath { get => directoryPath; set => SetProperty(ref directoryPath, value); }
+
+        private string searchText;
+        public string SearchText { get => searchText; set => SetProperty(ref searchText, value); }
+
         private bool canSearch = true;
         public bool CanSearch
         {
@@ -69,6 +74,13 @@ namespace GoFishCore.WpfUI
                 catch { /* Does not work with about:blank / non HTML pages */ }
             };
             PreviewKeyDown += MainWindowCancelOnEsc;
+            Loaded += LoadConfig;
+        }
+
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            SaveConfig();
+            base.OnClosing(e);
         }
 
         private void MainWindowCancelOnEsc(object sender, System.Windows.Input.KeyEventArgs e)
@@ -87,8 +99,8 @@ namespace GoFishCore.WpfUI
                 await Application.Current.Dispatcher.BeginInvoke((Action)(() => ButtonSearch_Click(sender, e)), System.Windows.Threading.DispatcherPriority.Normal);
                 return;
             }
-            var directoryPath = txtBrowse.Text;
-            var text = txtSearch.Text;
+            var directoryPath = DirectoryPath;
+            var text = SearchText;
             if (!string.IsNullOrWhiteSpace(directoryPath) && !string.IsNullOrWhiteSpace(text))
             {
                 try
@@ -101,7 +113,10 @@ namespace GoFishCore.WpfUI
                 {
                     MessageBox.Show(ex.Message);
                 }
-                CanSearch = true;
+                finally
+                {
+                    CanSearch = true;
+                }
             }
         }
         private void BtnSearch_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -233,6 +248,45 @@ namespace GoFishCore.WpfUI
             Models.RaiseCollectionChanged();
         }
 
+        private void SaveConfig()
+        {
+            var config = new ConfigJson
+            {
+                CaseSensitive = CaseSensitive,
+                LastDirectory = DirectoryPath,
+                LastSearch = SearchText,
+            };
+            var jsonBytes = JsonSerializer.ToBytes(config, new JsonSerializerOptions { WriteIndented = true });
+            try
+            {
+                File.WriteAllBytes("config.json", jsonBytes);
+            }
+            catch (Exception ex) { MessageBox.Show($"Could not save configuration.{Environment.NewLine}{ex.Message}"); }
+        }
+
+        private void LoadConfig(object sender, RoutedEventArgs e)
+        {
+            if (!File.Exists("config.json")) return;
+            try
+            {
+                var config = JsonSerializer.Parse<ConfigJson>(File.ReadAllBytes("config.json"));
+                DirectoryPath = config.LastDirectory;
+                CaseSensitive = config.CaseSensitive;
+                SearchText = config.LastSearch;
+            }
+            catch (Exception ex) { MessageBox.Show($"Could not load configuration.{Environment.NewLine}{ex.Message}"); }
+        }
+
+        private class ConfigJson
+        {
+            [JsonPropertyName("last_directory")]
+            public string LastDirectory { get; set; }
+            [JsonPropertyName("last_search")]
+            public string LastSearch { get; set; }
+            [JsonPropertyName("case_sensitive")]
+            public bool CaseSensitive { get; set; }
+        }
+
         public class SearchModel
         {
             public string Library { get; set; }
@@ -273,7 +327,7 @@ namespace GoFishCore.WpfUI
             }
             if (!string.IsNullOrWhiteSpace(filePath))
             {
-                txtBrowse.Text = filePath;
+                DirectoryPath = filePath;
             }
         }
 
@@ -297,103 +351,19 @@ namespace GoFishCore.WpfUI
 
             try
             {
-                if (searchModel?.Filepath != null)
+                if (searchModel.Filepath != null)
                 {
                     webBrowser.NavigateToString(searchModel.Content);
                 }
-                else if (searchModel?.Content != null)
+                else if (searchModel.Content != null)
                 {
                     var content = searcher.HTMLifySurroundLines(searchModel.Content, searchModel.Line - 1, "<mark>", "</mark>");
                     webBrowser.NavigateToString(content);
-                }
-                else
-                {
-                    webBrowser.NavigateToString("<body>No item selected</body>");
                 }
             }
             catch (System.Exception ex)
             {
                 MessageBox.Show(ex.Message);
-            }
-        }
-    }
-
-    public static class StringExtensions
-    {
-        public static string GetLine(this string value, int line)
-        {
-            var previousLine = 0;
-            var lineIdx = 0;
-            for (int i = 0; i <= line; i++)
-            {
-                previousLine = lineIdx;
-                lineIdx = value.IndexOf('\n', lineIdx+1);
-            }
-            if (lineIdx != -1)
-            {
-                if (lineIdx <= previousLine)
-                {
-                    return value[previousLine..];
-                }
-                return value[previousLine..lineIdx];
-            }
-            return "";
-        }
-    }
-
-    public class SpeedObservableCollection<T> : ObservableCollection<T>
-    {
-        public SpeedObservableCollection()
-        {
-            _suspendCollectionChangeNotification = false;
-        }
-
-        bool _suspendCollectionChangeNotification;
-
-        public void RaiseCollectionChanged()
-        {
-            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
-        }
-        protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
-        {
-            if (!_suspendCollectionChangeNotification)
-            {
-                if (!Application.Current.Dispatcher.CheckAccess())
-                {
-                    Application.Current.Dispatcher.BeginInvoke((Action)(() => OnCollectionChanged(e)), System.Windows.Threading.DispatcherPriority.DataBind);
-                    return;
-                }
-                base.OnCollectionChanged(e);
-            }
-        }
-
-        public void SuspendCollectionChangeNotification()
-        {
-            _suspendCollectionChangeNotification = true;
-        }
-
-        public void ResumeCollectionChangeNotification()
-        {
-            _suspendCollectionChangeNotification = false;
-        }
-
-        public void AddRange(IEnumerable<T> items)
-        {
-            bool shouldResume = !_suspendCollectionChangeNotification;
-            SuspendCollectionChangeNotification();
-            try
-            {
-                foreach (var i in items)
-                    base.InsertItem(Count, i);
-            }
-            finally
-            {
-                if (shouldResume)
-                {
-                    ResumeCollectionChangeNotification();
-                }
-                var arg = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset);
-                OnCollectionChanged(arg);
             }
         }
     }
