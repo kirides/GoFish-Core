@@ -11,15 +11,11 @@
                 previousLine = lineIdx;
                 lineIdx = value.IndexOf('\n', lineIdx + 1);
             }
-            if (lineIdx != -1)
+            if (lineIdx <= previousLine)
             {
-                if (lineIdx <= previousLine)
-                {
-                    return value[previousLine..];
-                }
-                return value[previousLine..lineIdx];
+                return value[previousLine..];
             }
-            return "";
+            return value[previousLine..lineIdx];
         }
     }
 }

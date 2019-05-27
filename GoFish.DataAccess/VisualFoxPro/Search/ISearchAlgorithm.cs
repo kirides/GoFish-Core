@@ -42,9 +42,9 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
                         {
                             break;
                         }
-                        code = code.Slice(idx + 1 + text.Length);
+                        code = code.Slice(idx + text.Length);
                     }
-                    while (idx != -1);
+                    while (idx != -1 && code.Length > 0);
                 }
             }
         }
