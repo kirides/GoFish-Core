@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace GoFish.DataAccess.VisualFoxPro
 {
@@ -47,10 +48,70 @@ namespace GoFish.DataAccess.VisualFoxPro
             return lib;
         }
 
+        static Regex rxDefineClass = new Regex(@"DEFINE\s+CLASS\s+(\w+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        static Regex rxDefine2 = new Regex("DEFINE", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         private void ParsePRG(string name, Stream stream, Encoding encoding)
         {
-            var cl = Class.FromPRG(name, stream, encoding);
-            Classes.Add(cl);
+            var classBuilder = new StringBuilder();
+            var className = "Main";
+            // FASTPATH
+            var mainClass = new Class
+            {
+                Name = "",
+                BaseClass = "",
+            };
+            using (var fs = new StreamReader(stream, encoding))
+            {
+                mainClass.methods.Add(new Method
+                {
+                    Name = "",
+                    Body = fs.ReadToEnd()
+                });
+            }
+            Classes.Add(mainClass);
+
+
+            return; // FASTPATH
+
+            using (var fs = new StreamReader(stream, encoding))
+            {
+                while (fs.ReadLine() is string line)
+                {
+                    if (line.Contains("DEFINE CLASS", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var m = rxDefineClass.Match(line);
+                        if (m.Success)
+                        {
+                            var cl = Class.FromPRG(className, classBuilder.ToString());
+                            Classes.Add(cl);
+                            classBuilder.Clear();
+                            className = m.Groups[1].Value;
+                        }
+                    }
+                    else if (line.Contains("ENDDEF", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var cl = Class.FromPRG(className, classBuilder.ToString());
+                        Classes.Add(cl);
+                        classBuilder.Clear();
+                    }
+                    else
+                    {
+                        classBuilder.AppendLine(line);
+                    }
+                }
+            }
+            if (classBuilder.Length != 0)
+            {
+                var cl = Class.FromPRG(className, classBuilder.ToString());
+                Classes.Add(cl);
+                classBuilder.Clear();
+            }
+        }
+
+        enum Tokens
+        {
+            None, BeginClass, EndClass, BeginMethod, EndMethod, Text
         }
     }
 }

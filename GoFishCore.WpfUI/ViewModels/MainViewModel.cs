@@ -112,7 +112,11 @@ namespace GoFishCore.WpfUI.ViewModels
             System.Collections.Concurrent.BlockingCollection<string> errors = new System.Collections.Concurrent.BlockingCollection<string>();
 
             var fileEncoding = System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252);
+#if DEBUG5
+            Parallel.ForEach(files, new ParallelOptions { MaxDegreeOfParallelism = 1 }, (file, state) =>
+#else
             Parallel.ForEach(files, (file, state) =>
+#endif            
             {
                 if (cancellationToken.IsCancellationRequested)
                 {

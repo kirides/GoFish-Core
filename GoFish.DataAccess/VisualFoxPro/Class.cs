@@ -29,24 +29,24 @@ namespace GoFish.DataAccess.VisualFoxPro
 
             return form;
         }
-        public static Class FromPRG(string name, Stream stream, Encoding encoding)
+        public static Class FromPRG(string name, string body)
         {
             var form = new Class
             {
                 Name = name,
                 BaseClass = "PRG"
             };
-            using (var methodBodies = new StreamReader(stream, encoding))
+            using (var methodBodies = new StringReader(body))
             {
-                form.ParseMethodsPRG(methodBodies);
+                form.ParseMethods(methodBodies);
             }
 
             return form;
         }
-        private readonly List<Method> methods = new List<Method>();
+        internal readonly List<Method> methods = new List<Method>();
         public IReadOnlyList<Method> Methods => methods;
 
-        private readonly List<string> properties = new List<string>();
+        internal readonly List<string> properties = new List<string>();
         public IReadOnlyList<string> Properties => properties.AsReadOnly();
 
         public string Name { get; set; } = "";
@@ -64,12 +64,13 @@ namespace GoFish.DataAccess.VisualFoxPro
         {
             while (rdr.ReadLine() is string l)
             {
-                if (l.StartsWith("PROC", StringComparison.OrdinalIgnoreCase))
+                var trimmed = l.TrimStart();
+                if (trimmed.StartsWith("PROC", StringComparison.OrdinalIgnoreCase))
                 {
                     var method = ReadMethod(MethodType.Procedure, l, rdr);
                     methods.Add(method);
                 }
-                else if (l.StartsWith("FUNC", StringComparison.OrdinalIgnoreCase))
+                else if (trimmed.StartsWith("FUNC", StringComparison.OrdinalIgnoreCase))
                 {
                     var method = ReadMethod(MethodType.Function, l, rdr);
                     methods.Add(method);
@@ -111,20 +112,24 @@ namespace GoFish.DataAccess.VisualFoxPro
             };
             var bodyBuilder = stringBuilderPool.Rent();
 
-            while (rdr.ReadLine() is string bodyLine && !bodyLine.StartsWith("ENDFU", StringComparison.OrdinalIgnoreCase)
-                && !bodyLine.StartsWith("ENDPR", StringComparison.OrdinalIgnoreCase))
+            while (rdr.ReadLine() is string bodyLine)
             {
-                if (bodyLine.StartsWith("PROC", StringComparison.OrdinalIgnoreCase))
+                var trimmedLine = bodyLine.TrimStart();
+                if (trimmedLine.StartsWith("ENDFU", StringComparison.OrdinalIgnoreCase)
+                    || trimmedLine.StartsWith("ENDPR", StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+                if (trimmedLine.StartsWith("PROC", StringComparison.OrdinalIgnoreCase))
                 {
                     methods.Add(ReadMethod(MethodType.Procedure, bodyLine, rdr));
                     break;
                 }
-                else if (bodyLine.StartsWith("FUNC", StringComparison.OrdinalIgnoreCase))
+                else if (trimmedLine.StartsWith("FUNC", StringComparison.OrdinalIgnoreCase))
                 {
                     methods.Add(ReadMethod(MethodType.Function, bodyLine, rdr));
                     break;
                 }
-                var trimmedLine = bodyLine.TrimStart();
                 if (trimmedLine.StartsWith("PARAM", StringComparison.OrdinalIgnoreCase) || trimmedLine.StartsWith("LPARAM", StringComparison.OrdinalIgnoreCase))
                 {
                     method.Parameters.AddRange(ReadParameters(rdr, trimmedLine.Substring(trimmedLine.IndexOf(' ') + 1)));
