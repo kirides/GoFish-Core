@@ -101,13 +101,17 @@ namespace GoFishCore.WpfUI.ViewModels
 
             IEnumerable<string> files = Directory.EnumerateFiles(directoryPath, "*.*", SearchOption.AllDirectories)
                 .Where(path => path.EndsWith(".vcx", StringComparison.OrdinalIgnoreCase)
-                || path.EndsWith(".scx", StringComparison.OrdinalIgnoreCase));
+                || path.EndsWith(".scx", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".prg", StringComparison.OrdinalIgnoreCase));
 
             int fileCount = files.Count();
             this.StatusTotal = fileCount;
             int currentFile = 0;
-            System.Collections.Concurrent.BlockingCollection<(string, ClassLibrary)> cache = new System.Collections.Concurrent.BlockingCollection<(string, ClassLibrary)>(fileCount);
+            System.Collections.Concurrent.BlockingCollection<(string, ClassLibrary)> cache
+                = new System.Collections.Concurrent.BlockingCollection<(string, ClassLibrary)>();
             System.Collections.Concurrent.BlockingCollection<string> errors = new System.Collections.Concurrent.BlockingCollection<string>();
+
+            var fileEncoding = System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252);
             Parallel.ForEach(files, (file, state) =>
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -120,18 +124,30 @@ namespace GoFishCore.WpfUI.ViewModels
                 RaisePropertyChanged(nameof(this.StatusCurrent));
                 string filename = Path.GetFileNameWithoutExtension(file);
                 string fileExtension = Path.GetExtension(file);
-                string memo = Path.Combine(Path.GetDirectoryName(file), filename + GetMemoExtension(fileExtension));
-                if (!File.Exists(memo))
-                {
-                    return;
-                }
+
+
                 ClassLibrary library;
                 try
                 {
-                    Dbf dbf = new Dbf(file, memo, System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252));
-                    DbfReader reader = new DbfReader(dbf, System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252));
-                    IEnumerable<object[]> rows = reader.ReadRows((i, o) => (string)o[Constants.VCX.BODY] != "", includeMemo: true);
-                    library = ClassLibrary.FromRows(filename, rows);
+                    if (fileExtension.Contains("PRG", StringComparison.OrdinalIgnoreCase))
+                    {
+                        using (var fs = File.OpenRead(file))
+                        {
+                            library = ClassLibrary.FromPRG(filename, fs, fileEncoding);
+                        }
+                    }
+                    else
+                    {
+                        string memo = Path.Combine(Path.GetDirectoryName(file), filename + GetMemoExtension(fileExtension));
+                        if (!File.Exists(memo))
+                        {
+                            return;
+                        }
+                        Dbf dbf = new Dbf(file, memo, fileEncoding);
+                        DbfReader reader = new DbfReader(dbf, fileEncoding);
+                        IEnumerable<object[]> rows = reader.ReadRows((i, o) => (string)o[Constants.VCX.BODY] != "", includeMemo: true);
+                        library = ClassLibrary.FromRows(filename, rows);
+                    }
                     library.Classes.ForEach(x =>
                     {
                         x.BaseClass = null;
@@ -165,6 +181,7 @@ namespace GoFishCore.WpfUI.ViewModels
                     }));
                 }
             });
+            
             this.VfpLibCache = cache.ToList();
             this.StatusText = "";
             this.StatusCurrent = 0;
@@ -176,6 +193,15 @@ namespace GoFishCore.WpfUI.ViewModels
                 return errors.ToList();
             }
             return null;
+        }
+
+        private static ClassLibrary LibraryFromDbf(string file, System.Text.Encoding fileEncoding, string filename, string memo)
+        {
+            Dbf dbf = new Dbf(file, memo, fileEncoding);
+            DbfReader reader = new DbfReader(dbf, fileEncoding);
+            IEnumerable<object[]> rows = reader.ReadRows((i, o) => (string)o[Constants.VCX.BODY] != "", includeMemo: true);
+            var library = ClassLibrary.FromRows(filename, rows);
+            return library;
         }
 
         public async Task SearchAsync(string directoryPath, string text)

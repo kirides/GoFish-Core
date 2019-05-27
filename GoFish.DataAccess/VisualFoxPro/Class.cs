@@ -29,7 +29,20 @@ namespace GoFish.DataAccess.VisualFoxPro
 
             return form;
         }
+        public static Class FromPRG(string name, Stream stream, Encoding encoding)
+        {
+            var form = new Class
+            {
+                Name = name,
+                BaseClass = "PRG"
+            };
+            using (var methodBodies = new StreamReader(stream, encoding))
+            {
+                form.ParseMethodsPRG(methodBodies);
+            }
 
+            return form;
+        }
         private readonly List<Method> methods = new List<Method>();
         public IReadOnlyList<Method> Methods => methods;
 
@@ -53,18 +66,43 @@ namespace GoFish.DataAccess.VisualFoxPro
             {
                 if (l.StartsWith("PROC", StringComparison.OrdinalIgnoreCase))
                 {
-                    var method = ReadMethod(MethodType.Procedure, l, rdr, "ENDPR");
+                    var method = ReadMethod(MethodType.Procedure, l, rdr);
                     methods.Add(method);
                 }
                 else if (l.StartsWith("FUNC", StringComparison.OrdinalIgnoreCase))
                 {
-                    var method = ReadMethod(MethodType.Function, l, rdr, "ENDFU");
+                    var method = ReadMethod(MethodType.Function, l, rdr);
                     methods.Add(method);
                 }
             }
         }
 
-        private Method ReadMethod(MethodType type, string line, TextReader rdr, string terminator)
+        private void ParseMethodsPRG(TextReader rdr)
+        {
+            var mainMethod = new Method { Name = "Main", Type = MethodType.Procedure };
+            var mainMethodBodyBuilder = new StringBuilder();
+            while (rdr.ReadLine() is string l)
+            {
+                if (l.StartsWith("PROC", StringComparison.OrdinalIgnoreCase))
+                {
+                    var method = ReadMethod(MethodType.Procedure, l, rdr);
+                    methods.Add(method);
+                }
+                else if (l.StartsWith("FUNC", StringComparison.OrdinalIgnoreCase))
+                {
+                    var method = ReadMethod(MethodType.Function, l, rdr);
+                    methods.Add(method);
+                }
+                else
+                {
+                    mainMethodBodyBuilder.AppendLine(l);
+                }
+            }
+            mainMethod.Body = mainMethodBodyBuilder.ToString();
+            methods.Add(mainMethod);
+        }
+
+        private Method ReadMethod(MethodType type, string line, TextReader rdr)
         {
             var method = new Method
             {
@@ -73,8 +111,19 @@ namespace GoFish.DataAccess.VisualFoxPro
             };
             var bodyBuilder = stringBuilderPool.Rent();
 
-            while (rdr.ReadLine() is string bodyLine && !bodyLine.StartsWith(terminator, StringComparison.OrdinalIgnoreCase))
+            while (rdr.ReadLine() is string bodyLine && !bodyLine.StartsWith("ENDFU", StringComparison.OrdinalIgnoreCase)
+                && !bodyLine.StartsWith("ENDPR", StringComparison.OrdinalIgnoreCase))
             {
+                if (bodyLine.StartsWith("PROC", StringComparison.OrdinalIgnoreCase))
+                {
+                    methods.Add(ReadMethod(MethodType.Procedure, bodyLine, rdr));
+                    break;
+                }
+                else if (bodyLine.StartsWith("FUNC", StringComparison.OrdinalIgnoreCase))
+                {
+                    methods.Add(ReadMethod(MethodType.Function, bodyLine, rdr));
+                    break;
+                }
                 var trimmedLine = bodyLine.TrimStart();
                 if (trimmedLine.StartsWith("PARAM", StringComparison.OrdinalIgnoreCase) || trimmedLine.StartsWith("LPARAM", StringComparison.OrdinalIgnoreCase))
                 {
