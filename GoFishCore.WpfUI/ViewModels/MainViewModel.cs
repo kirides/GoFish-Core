@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -236,7 +236,7 @@ namespace GoFishCore.WpfUI.ViewModels
                 LastDirectory = DirectoryPath,
                 LastSearch = SearchText,
             };
-            byte[] jsonBytes = JsonSerializer.ToBytes(config, new JsonSerializerOptions { WriteIndented = true });
+            byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(config, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllBytes("config.json", jsonBytes);
         }
 
@@ -247,7 +247,7 @@ namespace GoFishCore.WpfUI.ViewModels
                 return;
             }
 
-            ConfigJson config = JsonSerializer.Parse<ConfigJson>(File.ReadAllBytes("config.json"));
+            ConfigJson config = JsonSerializer.Deserialize<ConfigJson>(File.ReadAllBytes("config.json"));
             this.DirectoryPath = config.LastDirectory;
             this.CaseSensitive = config.CaseSensitive;
             this.SearchText = config.LastSearch;
