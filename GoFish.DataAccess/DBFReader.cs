@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace GoFish.DataAccess
@@ -13,9 +14,16 @@ namespace GoFish.DataAccess
         private delegate object RowHandler(int row, ReadOnlySpan<byte> buffer, DbfField field, Encoding encoding);
         private readonly Dictionary<char, RowHandler> DbfTypeMap = new Dictionary<char, RowHandler>();
         private static readonly ArrayPool<byte> bufferPool = ArrayPool<byte>.Shared;
-        private static object CopyBuffer(int rowIndex, ReadOnlySpan<byte> buffer, DbfField field, Encoding encoding)
+        private static object CopyFieldBuffer(int rowIndex, ReadOnlySpan<byte> buffer, DbfField field, Encoding encoding)
         {
             var result = new byte[field.Length];
+            buffer.CopyTo(result);
+            return result;
+        }
+
+        private static byte[] CloneBuffer(ReadOnlySpan<byte> buffer)
+        {
+            var result = new byte[buffer.Length];
             buffer.CopyTo(result);
             return result;
         }
@@ -24,6 +32,9 @@ namespace GoFish.DataAccess
         private readonly DbfHeader dbfHeader;
 
         public Encoding TextEncoding { get; }
+
+        private readonly DbfField nullField;
+        private readonly RowHandler nullFieldHandler;
 
         public DbfReader(Dbf dbf, Encoding textEncoding)
         {
@@ -43,8 +54,8 @@ namespace GoFish.DataAccess
             DbfTypeMap.Add('F', (i, b, f, e) => { var numStr = e.GetString(b.Slice(f.Displacement, f.Length)).Trim(); return numStr == "" ? 0f : float.Parse(numStr); });
             DbfTypeMap.Add('I', (i, b, f, e) => BitConverter.ToInt32(b.Slice(f.Displacement)));
             DbfTypeMap.Add('L', (i, b, f, e) => BitConverter.ToBoolean(b.Slice(f.Displacement)));
-            DbfTypeMap.Add('Q', CopyBuffer);
-            DbfTypeMap.Add('P', CopyBuffer);
+            DbfTypeMap.Add('Q', CopyFieldBuffer);
+            DbfTypeMap.Add('P', CopyFieldBuffer);
 
             this.dbf = dbf;
             TextEncoding = textEncoding;
@@ -54,20 +65,18 @@ namespace GoFish.DataAccess
             { // Special handling for VFP
                 DbfTypeMap['B'] = (i, b, f, e) => BitConverter.ToDouble(b.Slice(f.Displacement));
                 // _NullFlags
-                DbfTypeMap['0'] = (i, b, f, e) => b[f.Displacement];
-                // VarChar/VarBinary
-                DbfTypeMap['V'] = (i, b, f, e) =>
-                { // TODO: FIXME - highly likely to return wrong results if VARCHAR field is 254 length
-                    var o = f.Displacement;
-                    var c = f.Length;
-                    if (!(b.Length - (o + c) > 2)) return e.GetString(b.Slice(o, c));
-                    var varCharLength = b[o + c - 1];
-                    if (b[o + c - 2] == ' ' || !char.IsLetterOrDigit((char)b[o + c - 2]))
-                    {
-                        return (f.Flags & DbfFieldFlags.Binary) != 0 ? CopyBuffer(i, b, f, e) : e.GetString(b.Slice(o, varCharLength) );
-                    }
-                    return (f.Flags & DbfFieldFlags.Binary) != 0 ? CopyBuffer(i, b, f, e) : e.GetString(b.Slice(o, c));
+                nullFieldHandler = DbfTypeMap['0'] = (i, b, f, e) =>
+                { // Handle dynamic Null-Field sizes
+                    if (f.Length == 1) return (uint)b[f.Displacement];
+                    if (f.Length == 5) return BitConverter.ToUInt32(b.Slice(f.Displacement));
+
+                    throw new NotSupportedException($"Nullfield size '{f.Length}' not supported");
                 };
+                // VarChar/VarBinary
+                // SPECIAL CASE for VARCHAR/BINARY
+                DbfTypeMap['V'] = (i, b, f, e) => f.Flags.HasFlag(DbfFieldFlags.Binary) ? (object)CloneBuffer(b) : e.GetString(b);
+
+                nullField = dbfHeader.Fields.FirstOrDefault(x => x.Type == '0');
             }
         }
 
@@ -164,10 +173,15 @@ namespace GoFish.DataAccess
         private object[] ReadRowFromBuffer(ReadOnlySpan<byte> rowBuf, int index)
         {
             var rowData = new object[dbfHeader.Fields.Count];
+            if (nullField != null)
+            {
+                rowData[nullField.Index] = nullFieldHandler(index, rowBuf, nullField, null);
+            }
             for (var i = 0; i < rowData.Length; i++)
             {
                 var field = dbfHeader.Fields[i];
-                //TrySetNullData(rowBuf, rowData, field);
+                if (field == nullField) continue;
+
                 var hasHandler = DbfTypeMap.TryGetValue(field.Type, out var handler);
                 if (!hasHandler) continue;
 
@@ -175,6 +189,18 @@ namespace GoFish.DataAccess
                 {
                     var memoPointer = handler(index, rowBuf, field, TextEncoding);
                     rowData[i] = $"MEMO@{memoPointer}";
+                }
+                else if (field.Type == 'V')
+                {
+                    bool hasNullFlag = ((uint)rowData[nullField.Index] & 1 << field.Index) != 0;
+                    if (hasNullFlag)
+                    {
+                        rowData[i] = handler(index, rowBuf.Slice(field.Displacement, rowBuf[field.Displacement + field.Length - 1]), field, TextEncoding);
+                    }
+                    else
+                    {
+                        rowData[i] = handler(index, rowBuf.Slice(field.Displacement, field.Length), field, TextEncoding);
+                    }
                 }
                 else
                 {
@@ -186,10 +212,15 @@ namespace GoFish.DataAccess
         private object[] ReadRowFromBufferMemo(ReadOnlySpan<byte> rowBuf, int index, Stream memofs, short memoBlocksize)
         {
             var rowData = new object[dbfHeader.Fields.Count];
+            if (nullField != null)
+            {
+                rowData[nullField.Index] = nullFieldHandler(index, rowBuf, nullField, null);
+            }
             for (var i = 0; i < rowData.Length; i++)
             {
                 var field = dbfHeader.Fields[i];
-                //TrySetNullData(rowBuf, rowData, field);
+                if (field == nullField) continue;
+
                 var hasHandler = DbfTypeMap.TryGetValue(field.Type, out var handler);
                 if (!hasHandler) continue;
 
@@ -233,34 +264,24 @@ namespace GoFish.DataAccess
                         }
                     }
                 }
+                else if (field.Type == 'V')
+                {
+                    bool hasNullFlag = ((uint)rowData[nullField.Index] & 1 << field.Index) != 0;
+                    if (hasNullFlag)
+                    {
+                        rowData[i] = handler(index, rowBuf.Slice(field.Displacement, rowBuf[field.Displacement + field.Length - 1]), field, TextEncoding);
+                    }
+                    else
+                    {
+                        rowData[i] = handler(index, rowBuf.Slice(field.Displacement, field.Length), field, TextEncoding);
+                    }
+                }
                 else
                 {
                     rowData[i] = handler(index, rowBuf, field, TextEncoding);
                 }
             }
             return rowData;
-        }
-
-        private void TrySetNullData(ReadOnlySpan<byte> rowBuf, object[] rowData, DbfField field)
-        {
-            if ((field.Flags & DbfFieldFlags.System) != 0
-                    && field.Name.Equals("_NullFlags", StringComparison.Ordinal))
-            {
-                byte nullFlags = rowBuf[field.Displacement];
-                byte fcCount = 1;
-                for (int fc = 0; fc < dbfHeader.Fields.Count; fc++)
-                {
-                    var f = dbfHeader.Fields[fc];
-                    if ((f.Flags & DbfFieldFlags.Null) != 0)
-                    {
-                        if ((nullFlags & fcCount) != 0)
-                        {
-                            rowData[fc] = null;
-                        }
-                        fcCount <<= 1;
-                    }
-                }
-            }
         }
 
         public IEnumerable<object[]> ReadRows(bool includeMemo = false, bool includeDeleted = false)
@@ -272,7 +293,6 @@ namespace GoFish.DataAccess
         {
             using (var fs = dbf.OpenReadOnly())
             {
-                //var rowBuf = new byte[dbfHeader.RecordLength];
                 var rowBuffer = bufferPool.Rent(dbfHeader.RecordLength);
                 var rowBuf = rowBuffer.AsMemory().Slice(0, dbfHeader.RecordLength);
                 try
