@@ -51,6 +51,8 @@ namespace GoFishCore.WpfUI.ViewModels
         {
             this.VfpLibCache?.Clear();
             this.VfpLibCache = null;
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
 
         public List<string> SearchDirectory(string directoryPath, string text, CancellationToken cancellationToken = default)
