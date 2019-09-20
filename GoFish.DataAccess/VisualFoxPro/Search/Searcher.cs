@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace GoFish.DataAccess.VisualFoxPro.Search
 {
@@ -51,9 +52,9 @@ var _self=""undefined""!=typeof window?window:""undefined""!=typeof WorkerGlobal
             this.searchAlgorithm = searchAlgorithm;
         }
 
-        public IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false)
+        public IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false, CancellationToken cancellationToken = default)
         {
-            return this.searchAlgorithm.Search(lib, text, ignoreCase);
+            return this.searchAlgorithm.Search(lib, text, ignoreCase, cancellationToken);
         }
 
         /// <summary>

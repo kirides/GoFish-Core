@@ -19,6 +19,7 @@ namespace GoFish.DataAccessTests
             var reader = new DbfReader(dbf);
             var row = reader.ReadRow(0);
             var row2 = reader.ReadRow(1);
+            var row3 = reader.ReadRow(2);
 
             var header = dbf.GetHeader();
             //var rows = reader.ReadRows(includeMemo: true).ToList();

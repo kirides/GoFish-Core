@@ -19,7 +19,16 @@ namespace GoFishCore.WpfUI
         {
             System.Runtime.ProfileOptimization.SetProfileRoot(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
             System.Runtime.ProfileOptimization.StartProfile("startup.profile");
+
+            App.Current.DispatcherUnhandledException += Current_DispatcherUnhandledException;
+
             base.OnStartup(e);
+        }
+
+        private void Current_DispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
+        {
+            MessageBox.Show($"{e}", "Unhandled Exception", MessageBoxButton.OK, MessageBoxImage.Error);
+            e.Handled = true;
         }
     }
 }

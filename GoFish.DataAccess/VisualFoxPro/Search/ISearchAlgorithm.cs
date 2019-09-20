@@ -2,19 +2,20 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace GoFish.DataAccess.VisualFoxPro.Search
 {
     public interface ISearchAlgorithm
     {
-        IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase);
+        IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase, CancellationToken cancellationToken);
     }
 
     public class PlainTextAlgorithm : ISearchAlgorithm
     {
-        private readonly ConcurrentDictionary<(string pattern, bool ignoreCase), BoyerMoore> searcherCache 
+        private readonly ConcurrentDictionary<(string pattern, bool ignoreCase), BoyerMoore> searcherCache
             = new ConcurrentDictionary<(string, bool), BoyerMoore>();
-        public virtual IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false)
+        public virtual IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false, CancellationToken cancellationToken = default)
         {
             var boyerMoore = searcherCache.GetOrAdd((text, ignoreCase), (c) => new BoyerMoore(c.pattern, c.ignoreCase));
 
@@ -22,6 +23,7 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
             {
                 for (int i = 0; i < c.Methods.Count; i++)
                 {
+                    if (cancellationToken.IsCancellationRequested) yield break;
                     var method = c.Methods[i];
                     var codeBody = method.Body;
                     var code = codeBody.AsMemory();
@@ -29,6 +31,7 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
                     int lastLines = 0;
                     do
                     {
+                        if (cancellationToken.IsCancellationRequested) yield break;
                         idx = boyerMoore.IndexOf(code.Span);
                         if (idx == -1)
                         {
@@ -62,7 +65,7 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
     }
     public class RegexSearchAlgorithm : PlainTextAlgorithm
     {
-        public override IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false)
+        public override IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false, CancellationToken cancellationToken = default)
         {
             var rxOptions = RegexOptions.Compiled;
             if (ignoreCase)
@@ -81,6 +84,8 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
                     var code = codeBody.AsMemory();
                     foreach (Match m in rx.Matches(codeBody))
                     {
+
+                        if (cancellationToken.IsCancellationRequested) yield break;
                         int lastLines = CountNewlines(code.Slice(0, m.Index).Span);
                         yield return new SearchResult(lib.Name, c.Name, method.Name, lastLines, codeBody);
                     }

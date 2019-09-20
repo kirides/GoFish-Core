@@ -2,6 +2,7 @@
 using GoFish.DataAccess.VisualFoxPro;
 using GoFish.DataAccess.VisualFoxPro.Search;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -55,51 +56,46 @@ namespace GoFishCore.WpfUI.ViewModels
             GC.Collect();
         }
 
+        private void SearchInCache(string text, CancellationToken cancellationToken = default)
+        {
+            int currentCachedFile = 0;
+            int cachedFilesCount = this.VfpLibCache.Count;
+            this.StatusTotal = cachedFilesCount;
+            Parallel.ForEach(this.VfpLibCache, (entry, state) =>
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    state.Stop();
+                }
+
+                this.StatusText = $"[Cache] Processing File {Interlocked.Increment(ref currentCachedFile)} of {cachedFilesCount} (Cancel using ESC)";
+                Interlocked.Exchange(ref this.statusCurrent, currentCachedFile);
+                RaisePropertyChanged(nameof(this.StatusCurrent));
+                IEnumerable<SearchResult> results = searcher.Search(entry.lib, text, ignoreCase: !this.CaseSensitive);
+                lock (this.Models)
+                {
+                    this.Models.AddRange(results.Select(r => new SearchModel
+                    {
+                        Library = r.Library + entry.extension,
+                        Class = r.Class,
+                        Method = r.Method,
+                        Line = r.Line + 1,
+                        Content = r.Content,
+                        LineContent = r.Content.GetLine(r.Line).Trim(),
+                    }));
+                }
+            });
+            CompleteSearch();
+        }
         public List<string> SearchDirectory(string directoryPath, string text, CancellationToken cancellationToken = default)
         {
             this.Models.SuspendCollectionChangeNotification();
             this.Models.Clear();
             if (this.VfpLibCache != null)
             {
-                int currentCachedFile = 0;
-                int cachedFilesCount = this.VfpLibCache.Count;
-                this.StatusTotal = cachedFilesCount;
-                Parallel.ForEach(this.VfpLibCache, (entry, state) =>
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        state.Stop();
-                    }
-
-                    this.StatusText = $"[Cache] Processing File {Interlocked.Increment(ref currentCachedFile)} of {cachedFilesCount} (Cancel using ESC)";
-                    Interlocked.Exchange(ref this.statusCurrent, currentCachedFile);
-                    RaisePropertyChanged(nameof(this.StatusCurrent));
-                    IEnumerable<SearchResult> results = searcher.Search(entry.lib, text, ignoreCase: !this.CaseSensitive);
-                    lock (this.Models)
-                    {
-                        this.Models.AddRange(results.Select(r => new SearchModel
-                        {
-                            Library = r.Library + entry.extension,
-                            Class = r.Class,
-                            Method = r.Method,
-                            Line = r.Line + 1,
-                            Content = r.Content,
-                            LineContent = r.Content.GetLine(r.Line).Trim(),
-                        }));
-                    }
-                });
-                this.StatusText = "";
-                this.StatusCurrent = 0;
-                this.StatusTotal = 100;
-                this.Models.ResumeCollectionChangeNotification();
-                this.Models.RaiseCollectionChanged();
+                SearchInCache(text, cancellationToken);
                 return null;
             }
-
-            //var tempDir = Path.Combine(Path.GetTempPath(), "gofish-core");
-            //try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); }
-            //catch { /* Nom nom nom */ }
-            //var tmpDir = Directory.CreateDirectory(tempDir);
 
             IEnumerable<string> files = Directory.EnumerateFiles(directoryPath, "*.*", SearchOption.AllDirectories)
                 .Where(path => path.EndsWith(".vcx", StringComparison.OrdinalIgnoreCase)
@@ -109,9 +105,9 @@ namespace GoFishCore.WpfUI.ViewModels
             int fileCount = files.Count();
             this.StatusTotal = fileCount;
             int currentFile = 0;
-            System.Collections.Concurrent.BlockingCollection<(string, ClassLibrary)> cache
-                = new System.Collections.Concurrent.BlockingCollection<(string, ClassLibrary)>();
-            System.Collections.Concurrent.BlockingCollection<string> errors = new System.Collections.Concurrent.BlockingCollection<string>();
+
+            BlockingCollection<(string, ClassLibrary)> cache = new BlockingCollection<(string, ClassLibrary)>();
+            BlockingCollection<string> errors = new BlockingCollection<string>();
 
             var fileEncoding = System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252);
 #if DEBUG5
@@ -170,11 +166,10 @@ namespace GoFishCore.WpfUI.ViewModels
                     return;
                 }
 
-                IEnumerable<SearchResult> results = searcher.Search(library, text, ignoreCase: !this.CaseSensitive);
+                IEnumerable<SearchResult> results = searcher.Search(library, text, ignoreCase: !this.CaseSensitive, cancellationToken);
 
                 lock (this.Models)
                 {
-                    //searcher.SaveResults(results, r => $"{r.Class}.{ r.Method}.{r.Line}", tmpDir.FullName);
                     this.Models.AddRange(results.Select(r => new SearchModel
                     {
                         Library = r.Library + fileExtension,
@@ -189,16 +184,21 @@ namespace GoFishCore.WpfUI.ViewModels
             });
             
             this.VfpLibCache = cache.ToList();
-            this.StatusText = "";
-            this.StatusCurrent = 0;
-            this.StatusTotal = 100;
-            this.Models.ResumeCollectionChangeNotification();
-            this.Models.RaiseCollectionChanged();
+            CompleteSearch();
             if (errors.Count != 0)
             {
                 return errors.ToList();
             }
             return null;
+        }
+
+        private void CompleteSearch()
+        {
+            this.StatusText = $"{this.Models.Count} matches";
+            this.StatusCurrent = 0;
+            this.StatusTotal = 100;
+            this.Models.ResumeCollectionChangeNotification();
+            this.Models.RaiseCollectionChanged();
         }
 
         private static ClassLibrary LibraryFromDbf(string file, System.Text.Encoding fileEncoding, string filename, string memo)
@@ -216,6 +216,7 @@ namespace GoFishCore.WpfUI.ViewModels
             {
                 try
                 {
+                    CancelSearch();
                     this.searchCancellation = new CancellationTokenSource();
                     this.CanSearch = false;
                     await Task.Run(() => SearchDirectory(directoryPath, text, this.searchCancellation.Token)).ConfigureAwait(false);
