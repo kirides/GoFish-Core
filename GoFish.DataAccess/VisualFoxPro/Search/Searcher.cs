@@ -9,6 +9,7 @@ namespace GoFish.DataAccess.VisualFoxPro.Search
     public class Searcher
     {
         private static Pool<StringBuilder> sbPool = new Pool<StringBuilder>(1, () => new StringBuilder(4096));
+        private readonly ISearchAlgorithm searchAlgorithm;
 
         private static readonly string templatePre = @"<!-- saved from url=(0014)about:internet -->
 <!DOCTYPE html>
@@ -30,8 +31,7 @@ pre[class*=language-].line-numbers{position:relative;padding-left:3.8em;counter-
 </head>
 <body>
 <pre class=""line-numbers""><code class=""language-foxpro"">";
-        private readonly ISearchAlgorithm searchAlgorithm;
-        private const string templatePost = @"</code></pre>
+        private static readonly string templatePost = @"</code></pre>
 <script>
 /* PrismJS 1.16.0
 https://prismjs.com/download.html#themes=prism&plugins=keep-markup */
@@ -46,7 +46,33 @@ var _self=""undefined""!=typeof window?window:""undefined""!=typeof WorkerGlobal
             number:/(?:\b(?:\d+(?:\.|x|h)?\d*|\B\.\d+|\.T\.|\.F\.|NULL|\.NULL\.)(?:\$|\b))(?:E[+-]?\d+)?/i};
 </script>
 </body>";
+        static Searcher()
+        {
+            var assemblyPath = Path.GetDirectoryName(typeof(Searcher).Assembly.Location);
+            var tmplPath = Path.Combine(assemblyPath, "template.html");
 
+            if (File.Exists(tmplPath))
+            {
+                var tmpl = File.ReadAllText(tmplPath);
+                const string contentDummy = "{{CONTENT}}";
+                var contentIdx = tmpl.IndexOf(contentDummy);
+                templatePre = tmpl.Substring(0, contentIdx);
+                templatePost = tmpl.Substring(contentIdx + contentDummy.Length);
+            }
+            else
+            {
+                var prePath = Path.Combine(assemblyPath, "template.pre.html");
+                var postPath = Path.Combine(assemblyPath, "template.post.html");
+                if (File.Exists(prePath))
+                {
+                    templatePre = File.ReadAllText(prePath);
+                }
+                if (File.Exists(postPath))
+                {
+                    templatePost = File.ReadAllText(postPath);
+                }
+            }
+        }
         public Searcher(ISearchAlgorithm searchAlgorithm)
         {
             this.searchAlgorithm = searchAlgorithm;
