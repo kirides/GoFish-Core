@@ -98,6 +98,30 @@ namespace GoFish.DataAccess
             return buf;
         }
 
+        /// <summary>
+        /// <para/>WARNING: Internal buffer is re-used, don't reference the returned buffer! Don't ToList()!
+        /// </summary>
+        /// <param name="includeDeleted"></param>
+        /// <returns></returns>
+        public IEnumerable<byte[]> ReadRowsRaw(bool includeDeleted = false)
+        {
+            var buffer = new byte[dbfHeader.RecordLength];
+            using (var fs = dbf.OpenReadOnly())
+            {
+                fs.Position = dbfHeader.HeaderSize + dbfHeader.RecordLength;
+                int read;
+                do
+                {
+                    read = fs.Read(buffer, 0, dbfHeader.RecordLength);
+                    if (read != dbfHeader.RecordLength) break;
+                    if (buffer[0] != '*')
+                    {
+                        yield return buffer;
+                    }
+                } while (read != 0);
+            }
+        }
+
         public int ReadRowRaw(int index, byte[] buffer, int offset, bool includeDeleted = false)
         {
             if (buffer.Length - offset < dbfHeader.RecordLength)
@@ -216,6 +240,7 @@ namespace GoFish.DataAccess
             {
                 rowData[nullField.Index] = nullFieldHandler(index, rowBuf, nullField, null);
             }
+            Span<byte> intBuf = stackalloc byte[4];
             for (var i = 0; i < rowData.Length; i++)
             {
                 var field = dbfHeader.Fields[i];
@@ -242,7 +267,7 @@ namespace GoFish.DataAccess
                     {
                         memofs.Seek(targetPos, SeekOrigin.Begin);
                     }
-                    var len = memofs.ReadInt(bigEndian: true);
+                    var len = memofs.ReadIntBE(intBuf);
 
                     if ((field.Flags & DbfFieldFlags.Binary) != 0)
                     {
