@@ -27,7 +27,11 @@ namespace GoFish.DataAccess.Extensions
                 return BinaryPrimitives.ReadInt32LittleEndian(buf);
             }
         }
-
+        public static int ReadIntBE(this Stream s, Span<byte> buffer)
+        {
+            s.Read(buffer);
+            return BinaryPrimitives.ReadInt32BigEndian(buffer);
+        }
         public static short ReadShort(this Stream s, bool bigEndian = false)
         {
             var buf = new byte[sizeof(short)];
