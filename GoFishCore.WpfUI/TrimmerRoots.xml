@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<linker>
+  <assembly fullname="PresentationCore"/>
+  <assembly fullname="PresentationUI"/>
+  <assembly fullname="mscorlib"/>
+  <assembly fullname="netstandard"/>
+  <assembly fullname="System.Text.Json"/>
+  <assembly fullname="System.Collections"/>
+  <assembly fullname="System.Collections.Concurrent"/>
+  <assembly fullname="System.Collections.NonGeneric"/>
+  <assembly fullname="System.Collections.Specialized"/>
+  <assembly fullname="System.Threading"/>
+  <assembly fullname="System.Threading.Tasks"/>
+  <assembly fullname="System.Threading.Tasks.Extensions"/>
+  <assembly fullname="System.Threading.Tasks.Parallel"/>
+  <assembly fullname="System"/>
+  <assembly fullname="System.IO"/>
+  <assembly fullname="System.Linq"/>
+  <assembly fullname="System.Linq.Expressions"/>
+  <assembly fullname="System.Runtime.Extensions"/>
+  <assembly fullname="System.Runtime"/>
+  <assembly fullname="System.Xaml"/>
+  <assembly fullname="WindowsBase"/>
+</linker>

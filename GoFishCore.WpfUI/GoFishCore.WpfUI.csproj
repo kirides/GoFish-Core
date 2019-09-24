@@ -4,7 +4,18 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>netcoreapp3.0</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!--<PublishReadyToRun>true</PublishReadyToRun>-->
+    <!--<PublishSingleFile>true</PublishSingleFile>-->
+    <PublishTrimmed>true</PublishTrimmed>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.3.3" />
@@ -13,5 +24,4 @@
   <ItemGroup>
     <ProjectReference Include="..\GoFish.DataAccess\GoFish.DataAccess.csproj" />
   </ItemGroup>
-
 </Project>
