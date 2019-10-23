@@ -293,6 +293,7 @@
       <Word>USE</Word>
       <Word>USERVALUE</Word>
       <Word>VALUE</Word>
+      <Word>VALUES</Word>
       <Word>VARCHARMAPPING</Word>
       <Word>VIEW</Word>
       <Word>VISIBLE</Word>
@@ -503,6 +504,7 @@
       <Word>GETFILE</Word>
       <Word>GETFLDSTATE</Word>
       <Word>GETINTERFACE</Word>
+      <Word>GETKEY</Word>
       <Word>GETNEXTMODIFIED</Word>
       <Word>GETOBJECT</Word>
       <Word>GETPAD</Word>
