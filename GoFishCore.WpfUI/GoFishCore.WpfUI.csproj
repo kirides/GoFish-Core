@@ -7,6 +7,7 @@
     <!--<PublishReadyToRun>true</PublishReadyToRun>-->
     <!--<PublishSingleFile>true</PublishSingleFile>-->
     <PublishTrimmed>true</PublishTrimmed>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -14,12 +15,20 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="VfpSyntax.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="VfpSyntax.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AvalonEdit" Version="6.0.0" />
     <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.3.3" />
-    <PackageReference Include="Microsoft.Toolkit.Wpf.UI.Controls.WebView" Version="6.0.0-preview7.1" />
   </ItemGroup>
 
   <ItemGroup>

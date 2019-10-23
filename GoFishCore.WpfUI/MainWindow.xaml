@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:webview="clr-namespace:Microsoft.Toolkit.Wpf.UI.Controls;assembly=Microsoft.Toolkit.Wpf.UI.Controls.WebView"
+        xmlns:ic="http://icsharpcode.net/sharpdevelop/avalonedit"
         xmlns:local="clr-namespace:GoFishCore.WpfUI"
         mc:Ignorable="d"
         Title="GoFish Core (Search-Only)" Height="450" Width="800">
@@ -56,7 +56,11 @@
             </DataGrid.Columns>
         </DataGrid>
         <GridSplitter Height="5" HorizontalAlignment="Stretch" Grid.Row="4"/>
-        <webview:WebViewCompatible x:Name="webBrowser"  Visibility="Collapsed" Grid.Row="5"/>
+        <ic:TextEditor x:Name="textEditor" Grid.Row="5" Visibility="Collapsed" IsReadOnly="True" ShowLineNumbers="True" 
+                       SnapsToDevicePixels="True" Padding="5,0,0,0"
+                       VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                       FontFamily="Consolas" FontSize="14" 
+                       Background="#F0F4F9"/>
         <StatusBar Grid.Row="6">
             <StatusBarItem>
                 <Grid Width="300">

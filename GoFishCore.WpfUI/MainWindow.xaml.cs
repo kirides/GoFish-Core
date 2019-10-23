@@ -1,10 +1,13 @@
 ﻿using GoFish.DataAccess.VisualFoxPro.Search;
 using GoFishCore.WpfUI.ViewModels;
+using ICSharpCode.AvalonEdit.Highlighting.Xshd;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System;
 using System.ComponentModel;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Xml;
 
 namespace GoFishCore.WpfUI
 {
@@ -16,15 +19,26 @@ namespace GoFishCore.WpfUI
         {
             this.DataContext = this.vm = new MainViewModel();
             InitializeComponent();
-            this.webBrowser.ContentLoading +=
-            (s, e) =>
-            {
-                try
-                { this.webBrowser.InvokeScript("displayMark"); }
-                catch { /* Does not work with about:blank / non HTML pages */ }
-            };
+
+            ConfigureTextEditor();
             PreviewKeyDown += MainWindowCancelOnEsc;
             Loaded += LoadConfig;
+        }
+
+        private void ConfigureTextEditor()
+        {
+            var asm = typeof(MainWindow).Assembly;
+            using (var sr = new StreamReader(asm.GetManifestResourceStream("GoFishCore.WpfUI.VfpSyntax.xml")))
+            using (var xrdr = XmlReader.Create(sr))
+            {
+                textEditor.SyntaxHighlighting = HighlightingLoader.Load(xrdr, null);
+            }
+            textEditor.TextArea.TextView.BackgroundRenderers.Add(new HighlightingBackgroundRenderer(vm));
+            textEditor.Options.EnableHyperlinks = true;
+            // Remove Rounded selection
+            textEditor.TextArea.SelectionCornerRadius = 0;
+            // Remove black stroke around selection
+            textEditor.TextArea.SelectionBorder = null;
         }
 
         private void LoadConfig(object sender, RoutedEventArgs e)
@@ -109,24 +123,27 @@ namespace GoFishCore.WpfUI
             SearchModel searchModel = (this.listSearchResults.SelectedItem as SearchModel);
             if (searchModel is null)
             {
-                this.webBrowser.Visibility = Visibility.Collapsed;
+                this.textEditor.Visibility = Visibility.Collapsed;
                 return;
             }
             else
             {
-                this.webBrowser.Visibility = Visibility.Visible;
+                this.textEditor.Visibility = Visibility.Visible;
             }
 
             try
             {
                 if (searchModel.Filepath != null)
                 {
-                    this.webBrowser.NavigateToString(searchModel.Content);
+                    this.textEditor.Document = new ICSharpCode.AvalonEdit.Document.TextDocument(System.IO.File.ReadAllText(searchModel.Content));
                 }
                 else if (searchModel.Content != null)
                 {
                     string content = Searcher.HTMLifySurroundLines(searchModel.Content, searchModel.Line - 1, "<mark>", "</mark>");
-                    this.webBrowser.NavigateToString(content);
+
+                    this.textEditor.Document = new ICSharpCode.AvalonEdit.Document.TextDocument(searchModel.Content);
+                    vm.HighlightedLine = searchModel.Line - 1;
+                    this.textEditor.ScrollToLine(searchModel.Line - 1);
                 }
             }
             catch (System.Exception ex)

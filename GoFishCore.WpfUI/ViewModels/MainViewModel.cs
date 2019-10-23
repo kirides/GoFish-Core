@@ -45,6 +45,8 @@ namespace GoFishCore.WpfUI.ViewModels
         }
 
         public SpeedObservableCollection<SearchModel> Models { get; private set; } = new SpeedObservableCollection<SearchModel>();
+        public int HighlightedLine { get; internal set; }
+
         private static readonly Searcher searcher = new Searcher(new PlainTextAlgorithm());
         private List<(string extension, ClassLibrary lib)> VfpLibCache = null;
 
