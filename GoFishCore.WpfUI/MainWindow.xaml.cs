@@ -3,6 +3,7 @@ using GoFishCore.WpfUI.ViewModels;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System;
 using System.ComponentModel;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace GoFishCore.WpfUI
@@ -10,14 +11,16 @@ namespace GoFishCore.WpfUI
     public partial class MainWindow : Window
     {
         private readonly MainViewModel vm;
+
         public MainWindow()
         {
             this.DataContext = this.vm = new MainViewModel();
             InitializeComponent();
-            this.webBrowser.LoadCompleted += (s, e) =>
+            this.webBrowser.ContentLoading +=
+            (s, e) =>
             {
                 try
-                { this.webBrowser.InvokeScript("eval", @"var elements = document.getElementsByTagName('mark'); if (elements.length > 0) { elements[0].scrollIntoView(true); }"); }
+                { this.webBrowser.InvokeScript("displayMark"); }
                 catch { /* Does not work with about:blank / non HTML pages */ }
             };
             PreviewKeyDown += MainWindowCancelOnEsc;
@@ -53,11 +56,8 @@ namespace GoFishCore.WpfUI
 
         private async void ButtonSearch_Click(object sender, RoutedEventArgs e)
         {
-            if (!Application.Current.Dispatcher.CheckAccess())
-            {
-                await Application.Current.Dispatcher.BeginInvoke((Action)(() => ButtonSearch_Click(sender, e)), System.Windows.Threading.DispatcherPriority.Normal);
-                return;
-            }
+            await App.UIContext;
+
             string directoryPath = this.vm.DirectoryPath;
             string text = this.vm.SearchText;
 
@@ -102,13 +102,10 @@ namespace GoFishCore.WpfUI
             }
         }
 
-        private void ListSearchResults_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private async void ListSearchResults_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            if (!Application.Current.Dispatcher.CheckAccess())
-            {
-                Application.Current.Dispatcher.BeginInvoke((Action)(() => ListSearchResults_SelectionChanged(sender, e)), System.Windows.Threading.DispatcherPriority.Normal);
-                return;
-            }
+            await App.UIContext;
+
             SearchModel searchModel = (this.listSearchResults.SelectedItem as SearchModel);
             if (searchModel is null)
             {

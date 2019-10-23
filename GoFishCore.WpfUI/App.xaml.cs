@@ -15,13 +15,14 @@ namespace GoFishCore.WpfUI
     /// </summary>
     public partial class App : Application
     {
+        public static System.Threading.SynchronizationContext UIContext { get; private set; }
         protected override void OnStartup(StartupEventArgs e)
         {
             System.Runtime.ProfileOptimization.SetProfileRoot(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
             System.Runtime.ProfileOptimization.StartProfile("startup.profile");
 
             App.Current.DispatcherUnhandledException += Current_DispatcherUnhandledException;
-
+            UIContext = System.Threading.SynchronizationContext.Current;
             base.OnStartup(e);
         }
 
