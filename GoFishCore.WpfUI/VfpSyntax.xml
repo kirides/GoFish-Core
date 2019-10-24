@@ -83,6 +83,7 @@
       <Word>COVERAGE</Word>
       <Word>CPCOMPILE</Word>
       <Word>CPDIALOG</Word>
+      <Word>CREATE</Word>
       <Word>CURRENCY</Word>
       <Word>CURSOR</Word>
       <Word>CUSTOM</Word>
@@ -231,6 +232,7 @@
       <Word>NOT</Word>
       <Word>NOTIFY</Word>
       <Word>NOFILTER</Word>
+      <Word>NOSHOW</Word>
       <Word>NOWAIT</Word>
       <Word>NULL</Word>
       <Word>NULLDISPLAY</Word>
@@ -297,6 +299,8 @@
       <Word>SCREEN</Word>
       <Word>SECONDS</Word>
       <Word>SELECT</Word>
+      <Word>SELEC</Word>
+      <Word>SELE</Word>
       <Word>SELECTEDITEM</Word>
       <Word>SELECTION</Word>
       <Word>SEPARATOR</Word>
@@ -749,6 +753,11 @@
       <Word>UPPER</Word>
       <Word>USED</Word>
       <Word>VAL</Word>
+      <Word>VALIDATE</Word>
+      <Word>VALIDAT</Word>
+      <Word>VALIDA</Word>
+      <Word>VALID</Word>
+      <Word>VALI</Word>
       <Word>VARTYPE</Word>
       <Word>VERSION</Word>
       <Word>WCHILD</Word>
