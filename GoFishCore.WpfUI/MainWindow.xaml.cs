@@ -27,18 +27,23 @@ namespace GoFishCore.WpfUI
 
         private void ConfigureTextEditor()
         {
-            var asm = typeof(MainWindow).Assembly;
-            using (var sr = new StreamReader(asm.GetManifestResourceStream("GoFishCore.WpfUI.VfpSyntax.xml")))
-            using (var xrdr = XmlReader.Create(sr))
-            {
-                textEditor.SyntaxHighlighting = HighlightingLoader.Load(xrdr, null);
-            }
             textEditor.TextArea.TextView.BackgroundRenderers.Add(new HighlightingBackgroundRenderer(vm));
             textEditor.Options.EnableHyperlinks = true;
             // Remove Rounded selection
             textEditor.TextArea.SelectionCornerRadius = 0;
             // Remove black stroke around selection
             textEditor.TextArea.SelectionBorder = null;
+
+            var xshdPath = Path.Combine(Environment.CurrentDirectory, "VfpSyntax.xml");
+            try
+            {
+                using var xrdr = XmlReader.Create(xshdPath);
+                textEditor.SyntaxHighlighting = HighlightingLoader.Load(xrdr, null);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine(ex, "IOError");
+            }
         }
 
         private void LoadConfig(object sender, RoutedEventArgs e)

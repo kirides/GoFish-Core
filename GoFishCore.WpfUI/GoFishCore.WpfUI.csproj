@@ -15,14 +15,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="VfpSyntax.xml" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="VfpSyntax.xml" />
-  </ItemGroup>
-
-  <ItemGroup>
     <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
   </ItemGroup>
 
@@ -33,5 +25,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GoFish.DataAccess\GoFish.DataAccess.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="VfpSyntax.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>
