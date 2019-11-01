@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Text;
 
@@ -265,7 +266,7 @@ namespace GoFish.DataAccess
                     }
                     else
                     {
-                        memofs.Seek(targetPos, SeekOrigin.Begin);
+                        memofs.Position = targetPos;
                     }
                     var len = memofs.ReadIntBE(intBuf);
 
@@ -359,6 +360,107 @@ namespace GoFish.DataAccess
                 finally
                 {
                     bufferPool.Return(rowBuffer);
+                }
+            }
+        }
+        private object[] ReadRowSequence(ReadOnlySequence<byte> sequence, int rowIndex)
+        {
+            if (sequence.IsSingleSegment)
+            {
+                return ReadRowFromBuffer(sequence.FirstSpan, rowIndex);
+            }
+            // TODO: use buffer pool if recordlength is larger than 1024
+            Span<byte> span = stackalloc byte[(int)sequence.Length];
+            sequence.CopyTo(span);
+            return ReadRowFromBuffer(span, rowIndex);
+        }
+        private object[] ReadRowSequenceMemo(ReadOnlySequence<byte> sequence, int rowIndex, Stream memofs, short memoBlocksize)
+        {
+            if (sequence.IsSingleSegment)
+            {
+                return ReadRowFromBufferMemo(sequence.FirstSpan, rowIndex, memofs, memoBlocksize);
+            }
+
+            // TODO: use buffer pool if recordlength is larger than 1024
+            Span<byte> span = sequence.Length > 1024 ? new byte[sequence.Length] : stackalloc byte[(int)sequence.Length];
+            sequence.CopyTo(span);
+            return ReadRowFromBufferMemo(span, rowIndex, memofs, memoBlocksize);
+        }
+        private static bool TryReadRecord(int recordLength, ref ReadOnlySequence<byte> buffer, out ReadOnlySequence<byte> record)
+        {
+            if (buffer.Length < recordLength)
+            {
+                record = default;
+                return false;
+            }
+
+            record = buffer.Slice(0, recordLength);
+            buffer = buffer.Slice(buffer.GetPosition(recordLength));
+
+            return true;
+        }
+        public async IAsyncEnumerable<object[]> ReadRowsAsync(Func<int, object[], bool> predicate, bool includeMemo = false, bool includeDeleted = false)
+        {
+            using (var fs = dbf.OpenReadOnlyAsync())
+            {
+                int recordLength = dbfHeader.RecordLength;
+                fs.Position = dbfHeader.HeaderSize;
+                var rdr = PipeReader.Create(fs);
+                if (includeMemo && (dbfHeader.Flags & DbfHeaderFlags.Memo) != 0)
+                {
+                    using (var memofs = dbf.OpenMemo())
+                    {
+                        memofs.Position = 6;
+                        var memoBlocksize = memofs.ReadShort(bigEndian: true);
+                        for (var index = 0; index < dbfHeader.RecordCount;)
+                        {
+                            var readRes = await rdr.ReadAsync();
+                            var buffer = readRes.Buffer;
+                            while (index < dbfHeader.RecordCount && TryReadRecord(recordLength, ref buffer, out var record))
+                            {
+                                if (record.FirstSpan[0] == 0x2A && !includeDeleted)
+                                {
+                                    index++;
+                                    continue; // Entry is marked Deleted(*)
+                                }
+                                var rowData = ReadRowSequenceMemo(record, index, memofs, memoBlocksize);
+
+                                if (predicate(index, rowData))
+                                    yield return rowData;
+                                index++;
+                            }
+                            rdr.AdvanceTo(buffer.Start, buffer.End);
+                            if (readRes.IsCompleted)
+                            {
+                                break;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    for (var index = 0; index < dbfHeader.RecordCount;)
+                    {
+                        var readRes = await rdr.ReadAsync();
+                        var buffer = readRes.Buffer;
+                        while (index < dbfHeader.RecordCount && TryReadRecord(recordLength, ref buffer, out var record))
+                        {
+                            if (record.FirstSpan[0] == 0x2A && !includeDeleted)
+                            {
+                                index++;
+                                continue; // Entry is marked Deleted(*)
+                            }
+                            var rowData = ReadRowSequence(record, index);
+                            if (predicate(index, rowData))
+                                yield return rowData;
+                            index++;
+                        }
+                        rdr.AdvanceTo(buffer.Start, buffer.End);
+                        if (readRes.IsCompleted)
+                        {
+                            break;
+                        }
+                    }
                 }
             }
         }

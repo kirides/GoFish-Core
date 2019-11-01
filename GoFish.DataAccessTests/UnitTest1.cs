@@ -10,6 +10,7 @@ namespace GoFish.DataAccessTests
     using System.IO;
     using System.Linq;
     using System.Text;
+    using System.Threading.Tasks;
     using Xunit.Abstractions;
 
     public class UnitTest1
@@ -74,6 +75,35 @@ namespace GoFish.DataAccessTests
             //Assert.Equal(6, reader.ReadRow(1)[1].ToString().Length);
             //Assert.Equal(254, reader.ReadRow(0)[1].ToString().Length);
             Assert.Equal(254, reader.ReadRow(2)[1].ToString().Length);
+        }
+
+        [Fact]
+        public async Task ReadDbfRowsAsync()
+        {
+            var dbf = new Dbf(Path.Combine(testDir, "poshistorie.dbf"));
+            var reader = new DbfReader(dbf);
+            int count = 0;
+            await foreach (var r in reader.ReadRowsAsync((i, x) => true, includeMemo: false, includeDeleted: true))
+            {
+                count++;
+                //if (count > 50) break;
+            }
+            output.WriteLine("Count: {0} ({1})", count, dbf.GetHeader().RecordCount);
+            Assert.Equal(dbf.GetHeader().RecordCount, count);
+        }
+        [Fact]
+        public void ReadDbfRows()
+        {
+            var dbf = new Dbf(Path.Combine(testDir, "poshistorie.dbf"));
+            var reader = new DbfReader(dbf);
+            int count = 0;
+            foreach (var r in reader.ReadRows((i, x) => true, includeMemo: false, includeDeleted: true))
+            {
+                count++;
+                //if (count > 50) break;
+            }
+            output.WriteLine("Count: {0} ({1})", count, dbf.GetHeader().RecordCount);
+            Assert.Equal(dbf.GetHeader().RecordCount, count);
         }
     }
 
