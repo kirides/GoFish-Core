@@ -128,12 +128,9 @@ namespace GoFishCore.WpfUI
             SearchModel searchModel = (this.listSearchResults.SelectedItem as SearchModel);
             if (searchModel is null)
             {
-                this.textEditor.Visibility = Visibility.Collapsed;
+                vm.HighlightedLine = -1;
+                this.textEditor.Document = new ICSharpCode.AvalonEdit.Document.TextDocument();
                 return;
-            }
-            else
-            {
-                this.textEditor.Visibility = Visibility.Visible;
             }
 
             try
@@ -144,11 +141,9 @@ namespace GoFishCore.WpfUI
                 }
                 else if (searchModel.Content != null)
                 {
-                    string content = Searcher.HTMLifySurroundLines(searchModel.Content, searchModel.Line - 1, "<mark>", "</mark>");
-
-                    this.textEditor.Document = new ICSharpCode.AvalonEdit.Document.TextDocument(searchModel.Content);
+                    this.textEditor.Document.Text = searchModel.Content;
                     vm.HighlightedLine = searchModel.Line - 1;
-                    this.textEditor.ScrollToLine(searchModel.Line - 1);
+                    this.textEditor.ScrollToLine(vm.HighlightedLine);
                 }
             }
             catch (System.Exception ex)

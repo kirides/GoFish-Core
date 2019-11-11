@@ -56,8 +56,8 @@
             </DataGrid.Columns>
         </DataGrid>
         <GridSplitter Height="5" HorizontalAlignment="Stretch" Grid.Row="4"/>
-        <ic:TextEditor x:Name="textEditor" Grid.Row="5" Visibility="Collapsed" IsReadOnly="True" ShowLineNumbers="True" 
-                       SnapsToDevicePixels="True" Padding="5,0,0,0"
+        <ic:TextEditor x:Name="textEditor" Grid.Row="5" IsReadOnly="True" ShowLineNumbers="True"
+                       Padding="5,0,0,0"
                        VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                        FontFamily="Consolas" FontSize="14" 
                        Background="#F0F4F9"/>

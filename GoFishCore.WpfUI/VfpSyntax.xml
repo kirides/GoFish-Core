@@ -54,6 +54,7 @@
       <Word>BROWSEIME</Word>
       <Word>BUILD</Word>
       <Word>CALL</Word>
+      <Word>CALCULATE</Word>
       <Word>CAPTION</Word>
       <Word>CARRY</Word>
       <Word>CASE</Word>
@@ -229,6 +230,7 @@
       <Word>NOCPTRANS</Word>
       <Word>NODE</Word>
       <Word>NODEFAULT</Word>
+      <Word>NOOPTIMIZE</Word>
       <Word>NOT</Word>
       <Word>NOTIFY</Word>
       <Word>NOFILTER</Word>
@@ -296,6 +298,7 @@
       <Word>SAFETY</Word>
       <Word>SCAN</Word>
       <Word>SCATTER</Word>
+      <Word>SCOPE</Word>
       <Word>SCREEN</Word>
       <Word>SECONDS</Word>
       <Word>SELECT</Word>
@@ -421,6 +424,7 @@
       <Word>ATLINE</Word>
       <Word>ATN2</Word>
       <Word>AUSED</Word>
+      <Word>AVG</Word>
       <Word>BAR</Word>
       <Word>PARPROMPT</Word>
       <Word>BETWEEN</Word>
@@ -441,6 +445,7 @@
       <Word>CDX</Word>
       <Word>CEILING</Word>
       <Word>CLEARRESULTSET</Word>
+      <Word>CNT</Word>
       <Word>CNTBAR</Word>
       <Word>CNTPAD</Word>
       <Word>COMARRAY</Word>
@@ -463,7 +468,13 @@
       <Word>DATABASE</Word>
       <Word>FORM</Word>
       <Word>LABEL</Word>
+      <Word>MAX</Word>
       <Word>MENU</Word>
+      <Word>NPV</Word>
+      <Word>STD</Word>
+      <Word>SUM</Word>
+      <Word>VAR</Word>
+      <Word>MIN</Word>
       <Word>PROJECT</Word>
       <Word>QUERY</Word>
       <Word>REPORT</Word>
