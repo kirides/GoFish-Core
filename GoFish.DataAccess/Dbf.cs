@@ -174,7 +174,7 @@ namespace GoFish.DataAccess
                     AutoIncrementStep = fieldBuf[23],
                     Index = index,
                 };
-                if ((field.Flags & DbfFieldFlags.Null) != 0)
+                if (field.CanBeNull)
                 {
                     nullFieldIndex++;
                     field.NullFieldIndex = nullFieldIndex;

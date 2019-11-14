@@ -17,5 +17,7 @@
 
         public override string ToString()
          => $"{Name} {Type}({Length}{(DecimalCount > 0 ? $", {DecimalCount}" : "")})";
+
+        public bool CanBeNull => (Flags & DbfFieldFlags.Null) != 0 || Type == 'V';
     }
 }
