@@ -115,6 +115,16 @@ namespace GoFish.DataAccessTests
             var row2 = reader.ReadRow(1);
             var rows = reader.ReadRows().ToList();
         }
+
+        [Fact]
+        public void ReadNullTbl_Large()
+        {
+            var dbf = new Dbf(Path.Combine(testDir, "_largenullable.dbf"));
+            var reader = new DbfReader(dbf);
+            var header = dbf.GetHeader();
+            var row2 = reader.ReadRow(0);
+            var rows = reader.ReadRows().ToList();
+        }
     }
 
     public static class OutputHelper

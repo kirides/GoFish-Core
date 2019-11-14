@@ -2,6 +2,7 @@
 using GoFish.DataAccess.Helpers;
 using System;
 using System.Buffers;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
@@ -69,9 +70,8 @@ namespace GoFish.DataAccess
                 nullFieldHandler = DbfTypeMap['0'] = (i, b, f, e) =>
                 { // Handle dynamic Null-Field sizes
                     if (f.Length == 1) return (uint)b[f.Displacement];
-                    if (f.Length == 5) return BitConverter.ToUInt32(b.Slice(f.Displacement));
-
-                    throw new NotSupportedException($"Nullfield size '{f.Length}' not supported");
+                    var bitMap = b.Slice(f.Displacement).ToArray();
+                    return new BitArray(bitMap);
                 };
                 // VarChar/VarBinary
                 // SPECIAL CASE for VARCHAR/BINARY
@@ -210,8 +210,15 @@ namespace GoFish.DataAccess
                 var hasHandler = DbfTypeMap.TryGetValue(field.Type, out var handler);
                 if (!hasHandler) continue;
 
-                bool hasNullFlag = nullField != null ? ((uint)rowData[nullField.Index] & 1 << field.Index) != 0 : false;
-
+                bool hasNullFlag = false;
+                if (nullField != null && (field.Flags & DbfFieldFlags.Null) != 0)
+                {
+                    hasNullFlag = nullField.Length switch
+                    {
+                        1 => ((uint)rowData[nullField.Index] & (1 << field.Index)) != 0,
+                        _ => ((BitArray)rowData[nullField.Index]).Get(field.NullFieldIndex),
+                    };
+                }
                 if (field.Type == 'M' || field.Type == 'W' || field.Type == 'G')
                 {
                     if (hasNullFlag) continue;
@@ -257,7 +264,15 @@ namespace GoFish.DataAccess
                 var hasHandler = DbfTypeMap.TryGetValue(field.Type, out var handler);
                 if (!hasHandler) continue;
 
-                bool hasNullFlag = nullField != null ? ((uint)rowData[nullField.Index] & 1 << field.Index) != 0 : false;
+                bool hasNullFlag = false;
+                if (nullField != null && (field.Flags & DbfFieldFlags.Null) != 0)
+                {
+                    hasNullFlag = nullField.Length switch
+                    {
+                        1 => ((uint)rowData[nullField.Index] & 1 << field.Index) != 0,
+                        _ => ((BitArray)rowData[nullField.Index]).Get(field.NullFieldIndex),
+                    };
+                }
 
                 if (field.Type == 'M')
                 {

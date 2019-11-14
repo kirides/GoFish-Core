@@ -159,6 +159,7 @@ namespace GoFish.DataAccess
             fs.Seek(32, SeekOrigin.Begin);
             var fieldBuf = bufferPool.Rent(fieldSize);
             var index = 0;
+            int nullFieldIndex = -1;
             while (fs.Read(fieldBuf, 0, fieldSize) != 0 && fieldBuf[0] != FieldDescriptorTerminator)
             {
                 var field = new VfpField
@@ -173,6 +174,11 @@ namespace GoFish.DataAccess
                     AutoIncrementStep = fieldBuf[23],
                     Index = index,
                 };
+                if ((field.Flags & DbfFieldFlags.Null) != 0)
+                {
+                    nullFieldIndex++;
+                    field.NullFieldIndex = nullFieldIndex;
+                }
                 Buffer.BlockCopy(fieldBuf, 24, field.Reserved24To31 = new byte[8], 0, 8);
                 if (dbTable != null && dbTable.Fields.Count > index)
                 {
