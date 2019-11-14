@@ -15,7 +15,7 @@ namespace GoFish.DataAccessTests
 
     public class UnitTest1
     {
-        private static readonly string testDir = @"C:\Users\john heckendorf\Documents\Visual FoxPro Projects\testProj\";
+        private static readonly string testDir = Path.GetDirectoryName(typeof(UnitTest1).Assembly.Location);
 
         private readonly ITestOutputHelper output;
 
@@ -36,7 +36,7 @@ namespace GoFish.DataAccessTests
                 //OutputHelper.MarkdownTable(header.Fields, reader.ReadRows(true).Take(50), h => h, sw.WriteLine);
                 OutputHelper.MarkdownTable(
                     new[] { "RAW CONTENT" },
-                    reader.ReadRowsRaw().Select(x=> new [] { OutputHelper.ByteArrayToX2(x) }).Take(50).ToList(),
+                    reader.ReadRowsRaw().Select(x => new[] { OutputHelper.ByteArrayToX2(x) }).Take(50).ToList(),
                     h => h,
                     sw.WriteLine);
             }
@@ -104,6 +104,16 @@ namespace GoFish.DataAccessTests
             }
             output.WriteLine("Count: {0} ({1})", count, dbf.GetHeader().RecordCount);
             Assert.Equal(dbf.GetHeader().RecordCount, count);
+        }
+
+        [Fact]
+        public void ReadNullTbl()
+        {
+            var dbf = new Dbf(Path.Combine(testDir, "_vn.dbf"));
+            var reader = new DbfReader(dbf);
+            var header = dbf.GetHeader();
+            var row2 = reader.ReadRow(1);
+            var rows = reader.ReadRows().ToList();
         }
     }
 

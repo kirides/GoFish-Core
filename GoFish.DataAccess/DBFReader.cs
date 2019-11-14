@@ -210,17 +210,23 @@ namespace GoFish.DataAccess
                 var hasHandler = DbfTypeMap.TryGetValue(field.Type, out var handler);
                 if (!hasHandler) continue;
 
+                bool hasNullFlag = nullField != null ? ((uint)rowData[nullField.Index] & 1 << field.Index) != 0 : false;
+
                 if (field.Type == 'M' || field.Type == 'W' || field.Type == 'G')
                 {
+                    if (hasNullFlag) continue;
+
                     var memoPointer = handler(index, rowBuf, field, TextEncoding);
                     rowData[i] = $"MEMO@{memoPointer}";
                 }
                 else if (field.Type == 'V')
                 {
-                    bool hasNullFlag = ((uint)rowData[nullField.Index] & 1 << field.Index) != 0;
                     if (hasNullFlag)
                     {
-                        rowData[i] = handler(index, rowBuf.Slice(field.Displacement, rowBuf[field.Displacement + field.Length - 1]), field, TextEncoding);
+                        var valueLength = rowBuf[field.Displacement + field.Length - 1];
+                        if (valueLength > 0)
+                            rowData[i] = handler(index, rowBuf.Slice(field.Displacement, valueLength), field, TextEncoding);
+                        else rowData[i] = null;
                     }
                     else
                     {
@@ -229,6 +235,7 @@ namespace GoFish.DataAccess
                 }
                 else
                 {
+                    if (hasNullFlag) continue;
                     rowData[i] = handler(index, rowBuf, field, TextEncoding);
                 }
             }
@@ -250,8 +257,11 @@ namespace GoFish.DataAccess
                 var hasHandler = DbfTypeMap.TryGetValue(field.Type, out var handler);
                 if (!hasHandler) continue;
 
+                bool hasNullFlag = nullField != null ? ((uint)rowData[nullField.Index] & 1 << field.Index) != 0 : false;
+
                 if (field.Type == 'M')
                 {
+                    if (hasNullFlag) continue;
                     var offset = (int)handler(index, rowBuf, field, TextEncoding);
                     if (offset == 0)
                     {
@@ -292,10 +302,12 @@ namespace GoFish.DataAccess
                 }
                 else if (field.Type == 'V')
                 {
-                    bool hasNullFlag = ((uint)rowData[nullField.Index] & 1 << field.Index) != 0;
                     if (hasNullFlag)
                     {
-                        rowData[i] = handler(index, rowBuf.Slice(field.Displacement, rowBuf[field.Displacement + field.Length - 1]), field, TextEncoding);
+                        var valueLength = rowBuf[field.Displacement + field.Length - 1];
+                        if (valueLength > 0)
+                            rowData[i] = handler(index, rowBuf.Slice(field.Displacement, valueLength), field, TextEncoding);
+                        else rowData[i] = null;
                     }
                     else
                     {
@@ -304,6 +316,7 @@ namespace GoFish.DataAccess
                 }
                 else
                 {
+                    if (hasNullFlag) continue;
                     rowData[i] = handler(index, rowBuf, field, TextEncoding);
                 }
             }

@@ -19,4 +19,10 @@
     <ProjectReference Include="..\GoFish.DataAccess\GoFish.DataAccess.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="_vn.DBF">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
