@@ -17,13 +17,6 @@ namespace GoFish.DataAccess
         private static readonly ArrayPool<byte> bufferPool = ArrayPool<byte>.Shared;
         private static object CopyFieldBuffer(int rowIndex, ReadOnlySpan<byte> buffer, DbfField field, Encoding encoding)
         {
-            var result = new byte[field.Length];
-            buffer.CopyTo(result);
-            return result;
-        }
-
-        private static byte[] CloneBuffer(ReadOnlySpan<byte> buffer)
-        {
             var result = new byte[buffer.Length];
             buffer.CopyTo(result);
             return result;
@@ -40,22 +33,22 @@ namespace GoFish.DataAccess
 
         public DbfReader(Dbf dbf, Encoding textEncoding)
         {
-            DbfTypeMap.Add('C', (i, b, f, e) => e.GetString(b.Slice(f.Displacement, f.Length)).TrimEnd('\0'));
-            DbfTypeMap.Add('M', (i, b, f, e) => BitConverter.ToInt32(b.Slice(f.Displacement)));
-            DbfTypeMap.Add('W', (i, b, f, e) => BitConverter.ToInt32(b.Slice(f.Displacement)));
-            DbfTypeMap.Add('G', (i, b, f, e) => BitConverter.ToInt32(b.Slice(f.Displacement)));
-            DbfTypeMap.Add('Y', (i, b, f, e) => BitConverter.ToInt64(b.Slice(f.Displacement)) / 10000m); // Stored as int64 with 4 implicit decimal places
+            DbfTypeMap.Add('C', (i, b, f, e) => e.GetString(b).TrimEnd('\0'));
+            DbfTypeMap.Add('M', (i, b, f, e) => BitConverter.ToInt32(b));
+            DbfTypeMap.Add('W', (i, b, f, e) => BitConverter.ToInt32(b));
+            DbfTypeMap.Add('G', (i, b, f, e) => BitConverter.ToInt32(b));
+            DbfTypeMap.Add('Y', (i, b, f, e) => BitConverter.ToInt64(b) / 10000m); // Stored as int64 with 4 implicit decimal places
             DbfTypeMap.Add('D', (i, b, f, e) =>
             {
-                var dateStr = e.GetString(b.Slice(f.Displacement, f.Length)).Trim(); return dateStr == "" ? DateTime.MinValue : DateTime.ParseExact(dateStr, "yyyyMMdd", null);
+                var dateStr = e.GetString(b).Trim(); return dateStr == "" ? DateTime.MinValue : DateTime.ParseExact(dateStr, "yyyyMMdd", null);
             });
-            DbfTypeMap.Add('T', (i, b, f, e) => JulianDateHelper.FromULongBuffer(b.Slice(f.Displacement)));
-            DbfTypeMap.Add('N', (i, b, f, e) => { var numStr = e.GetString(b.Slice(f.Displacement, f.Length)).Trim(); return numStr == "" ? 0m : decimal.Parse(numStr); });
-            DbfTypeMap.Add('B', (i, b, f, e) => BitConverter.ToInt32(b.Slice(f.Displacement)));
-            DbfTypeMap.Add('O', (i, b, f, e) => BitConverter.ToDouble(b.Slice(f.Displacement)));
-            DbfTypeMap.Add('F', (i, b, f, e) => { var numStr = e.GetString(b.Slice(f.Displacement, f.Length)).Trim(); return numStr == "" ? 0f : float.Parse(numStr); });
-            DbfTypeMap.Add('I', (i, b, f, e) => BitConverter.ToInt32(b.Slice(f.Displacement)));
-            DbfTypeMap.Add('L', (i, b, f, e) => BitConverter.ToBoolean(b.Slice(f.Displacement)));
+            DbfTypeMap.Add('T', (i, b, f, e) => JulianDateHelper.FromULongBuffer(b));
+            DbfTypeMap.Add('N', (i, b, f, e) => { var numStr = e.GetString(b).Trim(); return numStr == "" ? 0m : decimal.Parse(numStr); });
+            DbfTypeMap.Add('B', (i, b, f, e) => BitConverter.ToInt32(b));
+            DbfTypeMap.Add('O', (i, b, f, e) => BitConverter.ToDouble(b));
+            DbfTypeMap.Add('F', (i, b, f, e) => { var numStr = e.GetString(b).Trim(); return numStr == "" ? 0f : float.Parse(numStr); });
+            DbfTypeMap.Add('I', (i, b, f, e) => BitConverter.ToInt32(b));
+            DbfTypeMap.Add('L', (i, b, f, e) => BitConverter.ToBoolean(b));
             DbfTypeMap.Add('Q', CopyFieldBuffer);
             DbfTypeMap.Add('P', CopyFieldBuffer);
 
@@ -65,23 +58,23 @@ namespace GoFish.DataAccess
 
             if (IsVisualFoxPro(dbfHeader))
             { // Special handling for VFP
-                DbfTypeMap['B'] = (i, b, f, e) => BitConverter.ToDouble(b.Slice(f.Displacement));
+                DbfTypeMap['B'] = (i, b, f, e) => BitConverter.ToDouble(b);
 
                 // VarChar/VarBinary
                 // SPECIAL CASE for VARCHAR/BINARY
-                DbfTypeMap['V'] = (i, b, f, e) => f.Flags.HasFlag(DbfFieldFlags.Binary) ? (object)CloneBuffer(b) : e.GetString(b);
+                DbfTypeMap['V'] = (i, b, f, e) => f.Flags.HasFlag(DbfFieldFlags.Binary) ? CopyFieldBuffer(i, b, f, e) : e.GetString(b);
 
                 // _NullFlags
                 nullField = dbfHeader.Fields.FirstOrDefault(x => x.Type == '0');
-                nullFieldDataHandler = DbfTypeMap['0'] = (i, b, f, e) => CloneBuffer(b.Slice(f.Displacement, f.Length));
+                nullFieldDataHandler = DbfTypeMap['0'] = CopyFieldBuffer;
 
                 if (nullField.Length == 1)
                 {
-                    nullFieldHandlerFactory = (i, b, f, e) => new UIntNullFieldHandler(b[f.Displacement]);
+                    nullFieldHandlerFactory = (i, b, f, e) => new UIntNullFieldHandler(b[0]);
                 }
                 else
                 {
-                    nullFieldHandlerFactory = (i, b, f, e) => new BitArrayNullFieldHandler(b.Slice(f.Displacement, f.Length).ToArray());
+                    nullFieldHandlerFactory = (i, b, f, e) => new BitArrayNullFieldHandler(b.ToArray());
                 }
             }
         }
@@ -206,8 +199,8 @@ namespace GoFish.DataAccess
             INullFieldHandler nullFieldHandler = null;
             if (nullField != null)
             {
-                rowData[nullField.Index] = nullFieldDataHandler(index, rowBuf, nullField, null);
-                nullFieldHandler = (INullFieldHandler)nullFieldHandlerFactory(index, rowBuf, nullField, null);
+                rowData[nullField.Index] = nullFieldDataHandler(index, rowBuf.Slice(nullField.Displacement, nullField.Length), nullField, null);
+                nullFieldHandler = (INullFieldHandler)nullFieldHandlerFactory(index, rowBuf.Slice(nullField.Displacement, nullField.Length), nullField, null);
             }
             for (var i = 0; i < rowData.Length; i++)
             {
@@ -217,7 +210,7 @@ namespace GoFish.DataAccess
                 var hasHandler = DbfTypeMap.TryGetValue(field.Type, out var handler);
                 if (!hasHandler) continue;
 
-                bool hasNullFlag = false;
+                var hasNullFlag = false;
 
                 if (nullFieldHandler != null && field.CanBeNull)
                 {
@@ -227,16 +220,16 @@ namespace GoFish.DataAccess
                 {
                     if (hasNullFlag) continue;
 
-                    var memoPointer = handler(index, rowBuf, field, TextEncoding);
+                    var memoPointer = handler(index, rowBuf.Slice(field.Displacement, field.Length), field, TextEncoding);
                     rowData[i] = $"MEMO@{memoPointer}";
                 }
-                else if (field.Type == 'V')
+                else if (field.Type == 'V' || field.Type == 'Q')
                 {
                     if (hasNullFlag)
                     {
                         rowData[i] = null;
                     }
-                    else if (nullFieldHandler.IsNull(field.VarCharIsPartialIndex))
+                    else if (nullFieldHandler.IsNull(field.VarLengthSizeIndex))
                     {
                         var valueLength = rowBuf[field.Displacement + field.Length - 1];
                         rowData[i] = handler(index, rowBuf.Slice(field.Displacement, valueLength), field, TextEncoding);
@@ -249,7 +242,7 @@ namespace GoFish.DataAccess
                 else
                 {
                     if (hasNullFlag) continue;
-                    rowData[i] = handler(index, rowBuf, field, TextEncoding);
+                    rowData[i] = handler(index, rowBuf.Slice(field.Displacement, field.Length), field, TextEncoding);
                 }
             }
             return rowData;
@@ -260,8 +253,8 @@ namespace GoFish.DataAccess
             INullFieldHandler nullFieldHandler = null;
             if (nullField != null)
             {
-                rowData[nullField.Index] = nullFieldDataHandler(index, rowBuf, nullField, null);
-                nullFieldHandler = (INullFieldHandler)nullFieldHandlerFactory(index, rowBuf, nullField, null);
+                rowData[nullField.Index] = nullFieldDataHandler(index, rowBuf.Slice(nullField.Displacement, nullField.Length), nullField, null);
+                nullFieldHandler = (INullFieldHandler)nullFieldHandlerFactory(index, rowBuf.Slice(nullField.Displacement, nullField.Length), nullField, null);
             }
             Span<byte> intBuf = stackalloc byte[4];
             for (var i = 0; i < rowData.Length; i++)
@@ -272,7 +265,7 @@ namespace GoFish.DataAccess
                 var hasHandler = DbfTypeMap.TryGetValue(field.Type, out var handler);
                 if (!hasHandler) continue;
 
-                bool hasNullFlag = false;
+                var hasNullFlag = false;
                 if (nullFieldHandler != null && field.CanBeNull)
                 {
                     hasNullFlag = nullFieldHandler.IsNull(field.NullFieldIndex);
@@ -281,7 +274,7 @@ namespace GoFish.DataAccess
                 if (field.Type == 'M')
                 {
                     if (hasNullFlag) continue;
-                    var offset = (int)handler(index, rowBuf, field, TextEncoding);
+                    var offset = (int)handler(index, rowBuf.Slice(field.Displacement, field.Length), field, TextEncoding);
                     if (offset == 0)
                     {
                         rowData[i] = "";
@@ -319,13 +312,13 @@ namespace GoFish.DataAccess
                         }
                     }
                 }
-                else if (field.Type == 'V')
+                else if (field.Type == 'V' || field.Type == 'Q')
                 {
                     if (hasNullFlag)
                     {
                         rowData[i] = null;
                     }
-                    else if (nullFieldHandler.IsNull(field.VarCharIsPartialIndex))
+                    else if (nullFieldHandler.IsNull(field.VarLengthSizeIndex))
                     {
                         var valueLength = rowBuf[field.Displacement + field.Length - 1];
                         rowData[i] = handler(index, rowBuf.Slice(field.Displacement, valueLength), field, TextEncoding);
@@ -338,7 +331,7 @@ namespace GoFish.DataAccess
                 else
                 {
                     if (hasNullFlag) continue;
-                    rowData[i] = handler(index, rowBuf, field, TextEncoding);
+                    rowData[i] = handler(index, rowBuf.Slice(field.Displacement, field.Length), field, TextEncoding);
                 }
             }
             return rowData;
