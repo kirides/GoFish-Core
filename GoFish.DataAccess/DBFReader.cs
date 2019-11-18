@@ -234,10 +234,12 @@ namespace GoFish.DataAccess
                 {
                     if (hasNullFlag)
                     {
+                        rowData[i] = null;
+                    }
+                    else if (nullFieldHandler.IsNull(field.VarCharIsPartialIndex))
+                    {
                         var valueLength = rowBuf[field.Displacement + field.Length - 1];
-                        if (valueLength > 0)
-                            rowData[i] = handler(index, rowBuf.Slice(field.Displacement, valueLength), field, TextEncoding);
-                        else rowData[i] = null;
+                        rowData[i] = handler(index, rowBuf.Slice(field.Displacement, valueLength), field, TextEncoding);
                     }
                     else
                     {
@@ -321,10 +323,12 @@ namespace GoFish.DataAccess
                 {
                     if (hasNullFlag)
                     {
+                        rowData[i] = null;
+                    }
+                    else if (nullFieldHandler.IsNull(field.VarCharIsPartialIndex))
+                    {
                         var valueLength = rowBuf[field.Displacement + field.Length - 1];
-                        if (valueLength > 0)
-                            rowData[i] = handler(index, rowBuf.Slice(field.Displacement, valueLength), field, TextEncoding);
-                        else rowData[i] = null;
+                        rowData[i] = handler(index, rowBuf.Slice(field.Displacement, valueLength), field, TextEncoding);
                     }
                     else
                     {

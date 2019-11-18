@@ -173,8 +173,15 @@ namespace GoFish.DataAccess
                     NextAutoIncrement = BTOI(fieldBuf, 19),
                     AutoIncrementStep = fieldBuf[23],
                     Index = index,
+                    VarCharIsPartialIndex = -1,
+                    NullFieldIndex = -1,
                 };
-                if (field.CanBeNull)
+                if (field.Type == 'V')
+                {
+                    nullFieldIndex++;
+                    field.VarCharIsPartialIndex = nullFieldIndex;
+                }
+                if ((field.Flags & DbfFieldFlags.Null) != 0)
                 {
                     nullFieldIndex++;
                     field.NullFieldIndex = nullFieldIndex;

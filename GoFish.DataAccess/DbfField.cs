@@ -14,10 +14,11 @@
         public int Displacement { get; set; }
         public byte AutoIncrementStep { get; set; }
         public int NullFieldIndex { get; set; }
+        public int VarCharIsPartialIndex { get; set; }
 
         public override string ToString()
          => $"{Name} {Type}({Length}{(DecimalCount > 0 ? $", {DecimalCount}" : "")})";
 
-        public bool CanBeNull => (Flags & DbfFieldFlags.Null) != 0 || Type == 'V';
+        public bool CanBeNull => (Flags & DbfFieldFlags.Null) != 0;
     }
 }
