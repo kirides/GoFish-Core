@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +15,8 @@ namespace GoFishCore.WpfUI.ViewModels
 {
     public class MainViewModel : ViewModelBase
     {
+        private static ThreadLocal<StringBuilder> sbTL = new ThreadLocal<StringBuilder>(() => new StringBuilder(4096));
+
         private string statusText;
         public string StatusText { get => this.statusText; set => SetProperty(ref this.statusText, value); }
 
@@ -112,7 +115,8 @@ namespace GoFishCore.WpfUI.ViewModels
             BlockingCollection<string> errors = new BlockingCollection<string>();
 
             var fileEncoding = System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252);
-#if DEBUG5
+
+#if DEBUG
             Parallel.ForEach(files, new ParallelOptions { MaxDegreeOfParallelism = 1 }, (file, state) =>
 #else
             Parallel.ForEach(files, (file, state) =>
@@ -131,14 +135,16 @@ namespace GoFishCore.WpfUI.ViewModels
 
 
                 ClassLibrary library;
+                bool isPrg = false;
                 try
                 {
-                    if (fileExtension.Contains("PRG", StringComparison.OrdinalIgnoreCase))
+                    if (fileExtension.Equals(".PRG", StringComparison.OrdinalIgnoreCase))
                     {
                         using (var fs = File.OpenRead(file))
                         {
                             library = ClassLibrary.FromPRG(filename, fs, fileEncoding);
                         }
+                        isPrg = true;
                     }
                     else
                     {
@@ -154,7 +160,7 @@ namespace GoFishCore.WpfUI.ViewModels
                     }
                     library.Classes.ForEach(x =>
                     {
-                        x.BaseClass = null;
+                        //x.BaseClass = null;
                         foreach (Method m in x.Methods)
                         {
                             m.Parameters.Clear();
@@ -166,6 +172,11 @@ namespace GoFishCore.WpfUI.ViewModels
                 {
                     errors.Add(ex.Message);
                     return;
+                }
+                /* WRITE OUT THE CLASS FILE TO COMPARE IT */
+                if (!isPrg)
+                {
+                    WriteSCCFile(library, Path.Combine(Path.GetDirectoryName(file), Path.GetFileNameWithoutExtension(file) + ".scc"));
                 }
 
                 IEnumerable<SearchResult> results = searcher.Search(library, text, ignoreCase: !this.CaseSensitive, cancellationToken);
@@ -184,7 +195,7 @@ namespace GoFishCore.WpfUI.ViewModels
                     }));
                 }
             });
-            
+
             this.VfpLibCache = cache.ToList();
             CompleteSearch();
             if (errors.Count != 0)
@@ -192,6 +203,100 @@ namespace GoFishCore.WpfUI.ViewModels
                 return errors.ToList();
             }
             return null;
+        }
+
+        private void WriteSCCFile(ClassLibrary library, string targetFile)
+        {
+            var sb = sbTL.Value;
+            foreach (var c in library.Classes)
+            {
+                sb.Append("DEFINE CLASS ");
+                sb.Append(c.Name);
+                sb.Append(" AS ");
+                sb.AppendLine(c.BaseClass);
+                sb.AppendLine();
+
+                foreach (var p in c.Properties)
+                {
+                    sb.Append("\t");
+                    sb.AppendLine(p);
+                }
+                sb.AppendLine();
+
+                foreach (var m in c.Methods)
+                {
+                    sb.Append("\t");
+                    if (m.Type == MethodType.Function)
+                    {
+                        sb.Append("FUNCTION ");
+                    }
+                    else
+                    {
+                        sb.Append("PROCEDURE ");
+                    }
+                    sb.Append(m.Name);
+                    sb.Append("(");
+                    for (int i = 0; i < m.Parameters.Count; i++)
+                    {
+                        var p = m.Parameters[i];
+
+                        sb.Append(p.Name);
+                        if (!string.IsNullOrEmpty(p.Type))
+                        {
+                            sb.Append(" AS ");
+                            sb.Append(p.Type);
+                        }
+                        if (i != m.Parameters.Count - 1)
+                        {
+                            sb.Append(", ");
+                        }
+                    }
+                    sb.AppendLine(")");
+                    var bodyReader = new StringReader(m.Body);
+                    bool isStart = true;
+                    while (bodyReader.ReadLine() is string line)
+                    {
+                        if (isStart && string.IsNullOrWhiteSpace(line))
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            isStart = false;
+                        }
+                        if (!string.IsNullOrWhiteSpace(line))
+                        {
+                            sb.Append("\t\t");
+                        }
+                        sb.AppendLine(line);
+                    }
+                    while (sb[sb.Length - 1] == '\n' || sb[sb.Length - 1] == '\r')
+                    {
+                        sb.Remove(sb.Length - 1, 1);
+                    }
+                    sb.AppendLine();
+                    sb.Append("\t");
+                    if (m.Type == MethodType.Function)
+                    {
+                        sb.AppendLine("ENDFUNC");
+                    }
+                    else
+                    {
+                        sb.AppendLine("ENDPROC");
+                    }
+                    sb.AppendLine();
+                }
+                sb.AppendLine("ENDDEFINE");
+                sb.AppendLine();
+            }
+            while (sb[sb.Length - 1] == '\n' || sb[sb.Length - 1] == '\r')
+            {
+                sb.Remove(sb.Length - 1, 1);
+            }
+            sb.AppendLine();
+            Directory.CreateDirectory("classes");
+            File.WriteAllText(targetFile, sb.ToString());
+            sb.Clear();
         }
 
         private void CompleteSearch()

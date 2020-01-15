@@ -9,6 +9,7 @@ namespace GoFish.DataAccessTests
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
+    using System.Linq.Expressions;
     using System.Text;
     using System.Threading.Tasks;
     using Xunit.Abstractions;
@@ -78,6 +79,20 @@ namespace GoFish.DataAccessTests
         }
 
         [Fact]
+        public void TestPJX()
+        {
+            var dbf = new Dbf(Path.Combine(testDir, "testproj.PJX"), Path.Combine(testDir, "testproj.PJT"));
+            var reader = new DbfReader(dbf);
+
+            var rows = reader.ReadRows(includeMemo: true);
+            var project = Project.FromRows(rows);
+        }
+
+        private class ValueBag<T>
+        {
+            public T Value { get; set; }
+        }
+        [Fact]
         public async Task ReadDbfRowsAsync()
         {
             var dbf = new Dbf(Path.Combine(testDir, "poshistorie.dbf"));
@@ -109,10 +124,10 @@ namespace GoFish.DataAccessTests
         [Fact]
         public void ReadNullTbl()
         {
-            var dbf = new Dbf(Path.Combine(testDir, "_vn.dbf"));
+            var dbf = new Dbf(Path.Combine(testDir, "somev.dbf"));
             var reader = new DbfReader(dbf);
             var header = dbf.GetHeader();
-            var row2 = reader.ReadRow(1);
+            var row2 = reader.ReadRow(0);
             var rows = reader.ReadRows().ToList();
         }
 

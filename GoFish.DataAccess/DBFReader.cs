@@ -33,7 +33,14 @@ namespace GoFish.DataAccess
 
         public DbfReader(Dbf dbf, Encoding textEncoding)
         {
-            DbfTypeMap.Add('C', (i, b, f, e) => e.GetString(b).TrimEnd('\0'));
+            DbfTypeMap.Add('C', (i, b, f, e) =>
+            {
+                if (f.Length == 1)
+                {
+                    return e.GetString(b)[0];
+                }
+                return e.GetString(b).TrimEnd('\0');
+            });
             DbfTypeMap.Add('M', (i, b, f, e) => BitConverter.ToInt32(b));
             DbfTypeMap.Add('W', (i, b, f, e) => BitConverter.ToInt32(b));
             DbfTypeMap.Add('G', (i, b, f, e) => BitConverter.ToInt32(b));
@@ -43,7 +50,35 @@ namespace GoFish.DataAccess
                 var dateStr = e.GetString(b).Trim(); return dateStr == "" ? DateTime.MinValue : DateTime.ParseExact(dateStr, "yyyyMMdd", null);
             });
             DbfTypeMap.Add('T', (i, b, f, e) => JulianDateHelper.FromULongBuffer(b));
-            DbfTypeMap.Add('N', (i, b, f, e) => { var numStr = e.GetString(b).Trim(); return numStr == "" ? 0m : decimal.Parse(numStr); });
+            DbfTypeMap.Add('N', (i, b, f, e) =>
+            {
+                var numStr = e.GetString(b).Trim();
+
+                if (f.DecimalCount == 0)
+                {
+                    if (f.Length < 3)
+                    {
+                        if (numStr == "") return (byte)0;
+                        return byte.Parse(numStr);
+                    }
+                    else if (f.Length < 5)
+                    {
+                        if (numStr == "") return (short)0;
+                        return short.Parse(numStr);
+                    }
+                    else if (f.Length < 10)
+                    {
+                        if (numStr == "") return (int)0; 
+                        return int.Parse(numStr);
+                    }
+                    else if (f.Length < 19)
+                    {
+                        if (numStr == "") return (long)0; 
+                        return long.Parse(numStr);
+                    }
+                }
+                return numStr == "" ? 0m : decimal.Parse(numStr);
+            });
             DbfTypeMap.Add('B', (i, b, f, e) => BitConverter.ToInt32(b));
             DbfTypeMap.Add('O', (i, b, f, e) => BitConverter.ToDouble(b));
             DbfTypeMap.Add('F', (i, b, f, e) => { var numStr = e.GetString(b).Trim(); return numStr == "" ? 0f : float.Parse(numStr); });
@@ -68,13 +103,16 @@ namespace GoFish.DataAccess
                 nullField = dbfHeader.Fields.FirstOrDefault(x => x.Type == '0');
                 nullFieldDataHandler = DbfTypeMap['0'] = CopyFieldBuffer;
 
-                if (nullField.Length == 1)
+                if (nullField != null)
                 {
-                    nullFieldHandlerFactory = (i, b, f, e) => new UIntNullFieldHandler(b[0]);
-                }
-                else
-                {
-                    nullFieldHandlerFactory = (i, b, f, e) => new BitArrayNullFieldHandler(b.ToArray());
+                    if (nullField.Length == 1)
+                    {
+                        nullFieldHandlerFactory = (i, b, f, e) => new UIntNullFieldHandler(b[0]);
+                    }
+                    else
+                    {
+                        nullFieldHandlerFactory = (i, b, f, e) => new BitArrayNullFieldHandler(b.ToArray());
+                    }
                 }
             }
         }
