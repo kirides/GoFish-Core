@@ -174,7 +174,7 @@ namespace GoFishCore.WpfUI.ViewModels
                     return;
                 }
                 /* WRITE OUT THE CLASS FILE TO COMPARE IT */
-                if (!isPrg)
+                if (!isPrg && false)
                 {
                     WriteSCCFile(library, Path.Combine(Path.GetDirectoryName(file), Path.GetFileNameWithoutExtension(file) + ".scc"));
                 }
@@ -289,7 +289,12 @@ namespace GoFishCore.WpfUI.ViewModels
                 sb.AppendLine("ENDDEFINE");
                 sb.AppendLine();
             }
-            while (sb[sb.Length - 1] == '\n' || sb[sb.Length - 1] == '\r')
+            if (sb.Length == 0)
+            {
+                sb.Clear();
+                return;
+            }
+            while (sb.Length > 0 && (sb[sb.Length - 1] == '\n' || sb[sb.Length - 1] == '\r'))
             {
                 sb.Remove(sb.Length - 1, 1);
             }
