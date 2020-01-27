@@ -29,7 +29,7 @@ namespace GoFish.DataAccess
         { }
         public Dbf(string filePath, string memoFilePath, Encoding encoding)
         {
-            if (!File.Exists(filePath)) throw new ArgumentException("No existing File", nameof(filePath));
+            if (!File.Exists(filePath)) throw new FileNotFoundException($"File not found: {filePath}", filePath);
             this.dbfPath = filePath;
             if (File.Exists(memoFilePath))
             {
@@ -75,7 +75,7 @@ namespace GoFish.DataAccess
                     case DbfType.VisualFoxProAutoInc:
                     case DbfType.VisualFoxProVar:
                         DatabaseTable dbTable = null;
-                        if ((header.Flags & DbfHeaderFlags.DBC) != 0)
+                        if ((header.Flags & DbfHeaderFlags.DBC) == 0)
                         {
                             FillBacklink(fs, header);
                             if (!string.IsNullOrEmpty(header.Backlink))
