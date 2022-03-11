@@ -29,7 +29,10 @@
                     <ColumnDefinition Width="auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBox Grid.Column="0"  Text="{Binding SearchText, FallbackValue='Search Value'}" />
-                <CheckBox Grid.Column="1" VerticalAlignment="Center" Content="Case Sensitive" IsChecked="{Binding CaseSensitive}"  Margin="0,0,5,0" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <CheckBox VerticalAlignment="Center" Content="Regex" IsChecked="{Binding UseRegex}"  Margin="0,0,5,0" />
+                    <CheckBox VerticalAlignment="Center" Content="Case Sensitive" IsChecked="{Binding CaseSensitive}"  Margin="0,0,5,0" />
+                </StackPanel>
             </Grid>
         </Grid>
         <Grid Grid.Row="1">

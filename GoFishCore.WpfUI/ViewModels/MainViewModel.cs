@@ -8,8 +8,10 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace GoFishCore.WpfUI.ViewModels
 {
@@ -38,6 +40,26 @@ namespace GoFishCore.WpfUI.ViewModels
         private string searchText;
         public string SearchText { get => this.searchText; set => SetProperty(ref this.searchText, value); }
 
+        private bool _useRegex;
+        public bool UseRegex
+        {
+            get => _useRegex;
+            set
+            {
+                if (SetProperty(ref _useRegex, value) && !string.IsNullOrWhiteSpace(SearchText))
+                {
+                    if (value && MessageBox.Show("Regex-escape current search text?", "Escape search", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                    {
+                        SearchText = Regex.Escape(SearchText);
+                    }
+                    else if (!value && MessageBox.Show("Unescape current search text?", "Unescape search", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                    {
+                        SearchText = Regex.Unescape(SearchText ?? "");
+                    }
+                }
+            }
+        }
+
         private bool canSearch = true;
         private CancellationTokenSource searchCancellation;
 
@@ -50,7 +72,8 @@ namespace GoFishCore.WpfUI.ViewModels
         public SpeedObservableCollection<SearchModel> Models { get; private set; } = new SpeedObservableCollection<SearchModel>();
         public int HighlightedLine { get; internal set; }
 
-        private static readonly Searcher searcher = new Searcher(new PlainTextAlgorithm());
+        private static readonly Searcher _regexSearcher = new Searcher(new RegexSearchAlgorithm());
+        private static readonly Searcher _plainTextSearcher = new Searcher(new PlainTextNetCoreAlgorithm());
         private List<(string extension, ClassLibrary lib)> VfpLibCache = null;
 
         public void ClearCache()
@@ -61,11 +84,21 @@ namespace GoFishCore.WpfUI.ViewModels
             GC.Collect();
         }
 
+        private Searcher GetSearcher()
+        {
+            return UseRegex
+                ? _regexSearcher
+                : _plainTextSearcher;
+        }
+
         private void SearchInCache(string text, CancellationToken cancellationToken = default)
         {
             int currentCachedFile = 0;
             int cachedFilesCount = this.VfpLibCache.Count;
             this.StatusTotal = cachedFilesCount;
+
+            var searcher = GetSearcher();
+
             Parallel.ForEach(this.VfpLibCache, (entry, state) =>
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -118,6 +151,7 @@ namespace GoFishCore.WpfUI.ViewModels
             BlockingCollection<string> errors = new BlockingCollection<string>();
 
             var fileEncoding = System.Text.CodePagesEncodingProvider.Instance.GetEncoding(1252);
+            var searcher = GetSearcher();
 
 #if DEBUG
             Parallel.ForEach(files, new ParallelOptions { MaxDegreeOfParallelism = 1 }, (file, state) =>
@@ -358,6 +392,7 @@ namespace GoFishCore.WpfUI.ViewModels
                 CaseSensitive = CaseSensitive,
                 LastDirectory = DirectoryPath,
                 LastSearch = SearchText,
+                UseRegex = UseRegex,
             };
             byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(config, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllBytes("config.json", jsonBytes);
@@ -371,6 +406,7 @@ namespace GoFishCore.WpfUI.ViewModels
             }
 
             ConfigJson config = JsonSerializer.Deserialize<ConfigJson>(File.ReadAllBytes("config.json"));
+            this.UseRegex = config.UseRegex;
             this.DirectoryPath = config.LastDirectory;
             this.CaseSensitive = config.CaseSensitive;
             this.SearchText = config.LastSearch;

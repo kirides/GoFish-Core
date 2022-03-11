@@ -10,5 +10,7 @@ namespace GoFishCore.WpfUI
         public string LastSearch { get; set; }
         [JsonPropertyName("case_sensitive")]
         public bool CaseSensitive { get; set; }
+        [JsonPropertyName("use_regex")]
+        public bool UseRegex { get; set; }
     }
 }

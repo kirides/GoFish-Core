@@ -8,6 +8,10 @@
 		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<Platforms>AnyCPU;x64;x86</Platforms>
+		<!--<TrimMode>copyused</TrimMode>-->
+		<PublishTrimmed>true</PublishTrimmed>
+		<_SuppressWpfTrimError>true</_SuppressWpfTrimError>
+		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
 		<!--<RuntimeIdentifier>win10-x86</RuntimeIdentifier>-->
 	</PropertyGroup>
 
