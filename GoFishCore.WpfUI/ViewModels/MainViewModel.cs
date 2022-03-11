@@ -91,6 +91,9 @@ namespace GoFishCore.WpfUI.ViewModels
                 }
             });
             CompleteSearch();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
         public List<string> SearchDirectory(string directoryPath, string text, CancellationToken cancellationToken = default)
         {
@@ -198,6 +201,11 @@ namespace GoFishCore.WpfUI.ViewModels
 
             this.VfpLibCache = cache.ToList();
             CompleteSearch();
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
             if (errors.Count != 0)
             {
                 return errors.ToList();

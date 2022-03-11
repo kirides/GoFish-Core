@@ -2,10 +2,12 @@
 using GoFish.DataAccess.Helpers;
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 
 namespace GoFish.DataAccess
@@ -35,54 +37,77 @@ namespace GoFish.DataAccess
         {
             DbfTypeMap.Add('C', (i, b, f, e) =>
             {
+                Span<char> str = stackalloc char[f.Length];
+                var nChars = e.GetChars(b, str);
+
                 if (f.Length == 1)
                 {
-                    return e.GetString(b)[0];
+                    return str[0];
                 }
-                return e.GetString(b).TrimEnd('\0');
+
+                str = str.Slice(0, nChars).TrimEnd('\0');
+                return str.ToString();
             });
-            DbfTypeMap.Add('M', (i, b, f, e) => BitConverter.ToInt32(b));
-            DbfTypeMap.Add('W', (i, b, f, e) => BitConverter.ToInt32(b));
-            DbfTypeMap.Add('G', (i, b, f, e) => BitConverter.ToInt32(b));
-            DbfTypeMap.Add('Y', (i, b, f, e) => BitConverter.ToInt64(b) / 10000m); // Stored as int64 with 4 implicit decimal places
+            DbfTypeMap.Add('M', (i, b, f, e) => BinaryPrimitives.ReadInt32LittleEndian(b));
+            DbfTypeMap.Add('W', (i, b, f, e) => BinaryPrimitives.ReadInt32LittleEndian(b));
+            DbfTypeMap.Add('G', (i, b, f, e) => BinaryPrimitives.ReadInt32LittleEndian(b));
+            DbfTypeMap.Add('Y', (i, b, f, e) => BinaryPrimitives.ReadInt64LittleEndian(b) / 10000m); // Stored as int64 with 4 implicit decimal places
             DbfTypeMap.Add('D', (i, b, f, e) =>
             {
-                var dateStr = e.GetString(b).Trim(); return dateStr == "" ? DateTime.MinValue : DateTime.ParseExact(dateStr, "yyyyMMdd", null);
+                Span<char> dateStr = stackalloc char[b.Length];
+                var nChars = e.GetChars(b, dateStr);
+                dateStr = dateStr.Slice(0, nChars).Trim();
+
+               return dateStr.IsEmpty ? DateTime.MinValue : DateTime.ParseExact(dateStr, "yyyyMMdd", null);
             });
             DbfTypeMap.Add('T', (i, b, f, e) => JulianDateHelper.FromULongBuffer(b));
             DbfTypeMap.Add('N', (i, b, f, e) =>
             {
-                var numStr = e.GetString(b).Trim();
+                Span<char> numStr = stackalloc char[f.Length];
+                var nChars = e.GetChars(b, numStr);
+                numStr = numStr.Slice(0, nChars).Trim();
 
                 if (f.DecimalCount == 0)
                 {
                     if (f.Length < 3)
                     {
-                        if (numStr == "") return (byte)0;
+                        if (numStr.IsEmpty) return (byte)0;
                         return byte.Parse(numStr);
                     }
                     else if (f.Length < 5)
                     {
-                        if (numStr == "") return (short)0;
+                        if (numStr.IsEmpty) return (short)0;
                         return short.Parse(numStr);
                     }
                     else if (f.Length < 10)
                     {
-                        if (numStr == "") return (int)0; 
+                        if (numStr.IsEmpty) return (int)0; 
                         return int.Parse(numStr);
                     }
                     else if (f.Length < 19)
                     {
-                        if (numStr == "") return (long)0; 
+                        if (numStr.IsEmpty) return (long)0; 
                         return long.Parse(numStr);
                     }
+                    else
+                    {
+                        if (numStr.IsEmpty) return (BigInteger)0;
+                        return BigInteger.Parse(numStr);
+                    }
                 }
-                return numStr == "" ? 0m : decimal.Parse(numStr);
+                return numStr.IsEmpty ? 0m : decimal.Parse(numStr);
             });
-            DbfTypeMap.Add('B', (i, b, f, e) => BitConverter.ToInt32(b));
-            DbfTypeMap.Add('O', (i, b, f, e) => BitConverter.ToDouble(b));
-            DbfTypeMap.Add('F', (i, b, f, e) => { var numStr = e.GetString(b).Trim(); return numStr == "" ? 0f : float.Parse(numStr); });
-            DbfTypeMap.Add('I', (i, b, f, e) => BitConverter.ToInt32(b));
+            DbfTypeMap.Add('B', (i, b, f, e) => BinaryPrimitives.ReadInt32LittleEndian(b));
+            DbfTypeMap.Add('O', (i, b, f, e) => BinaryPrimitives.ReadDoubleLittleEndian(b));
+            DbfTypeMap.Add('F', (i, b, f, e) =>
+            {
+                Span<char> numStr = stackalloc char[30];
+                var nChars = e.GetChars(b, numStr);
+                numStr = numStr.Slice(0, nChars).Trim();
+
+                return numStr.IsEmpty ? 0f : float.Parse(numStr);
+            });
+            DbfTypeMap.Add('I', (i, b, f, e) => BinaryPrimitives.ReadInt32LittleEndian(b));
             DbfTypeMap.Add('L', (i, b, f, e) => BitConverter.ToBoolean(b));
             DbfTypeMap.Add('Q', CopyFieldBuffer);
             DbfTypeMap.Add('P', CopyFieldBuffer);
@@ -93,7 +118,7 @@ namespace GoFish.DataAccess
 
             if (IsVisualFoxPro(dbfHeader))
             { // Special handling for VFP
-                DbfTypeMap['B'] = (i, b, f, e) => BitConverter.ToDouble(b);
+                DbfTypeMap['B'] = (i, b, f, e) => BinaryPrimitives.ReadDoubleLittleEndian(b);
 
                 // VarChar/VarBinary
                 // SPECIAL CASE for VARCHAR/BINARY

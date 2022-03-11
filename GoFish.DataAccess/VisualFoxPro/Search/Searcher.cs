@@ -48,7 +48,7 @@ var _self=""undefined""!=typeof window?window:""undefined""!=typeof WorkerGlobal
 </body>";
         static Searcher()
         {
-            var assemblyPath = Path.GetDirectoryName(typeof(Searcher).Assembly.Location);
+            var assemblyPath = AppContext.BaseDirectory;
             var tmplPath = Path.Combine(assemblyPath, "template.html");
 
             if (File.Exists(tmplPath))
