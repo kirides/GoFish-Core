@@ -340,7 +340,7 @@ namespace GoFish.DataAccess
                     var offset = (int)handler(index, rowBuf.Slice(field.Displacement, field.Length), field, TextEncoding);
                     if (offset == 0)
                     {
-                        rowData[i] = "";
+                        rowData[i] = (field.Flags & DbfFieldFlags.Binary) != 0 ? Array.Empty<byte>() : "";
                         continue;
                     }
                     var targetPos = 4 + (offset * memoBlocksize);
@@ -353,6 +353,7 @@ namespace GoFish.DataAccess
                         if (len > memofs.Length)
                         {
                             // wtf...? Woher kommt das verkehrte offset?
+                            rowData[i] = Array.Empty<byte>();
                             continue;
                         }
                         var memoBuf = new byte[len];
@@ -364,6 +365,7 @@ namespace GoFish.DataAccess
                         if (len > memofs.Length)
                         {
                             // wtf...? Woher kommt das verkehrte offset?
+                            rowData[i] = "INVALID MEMO OFFSET";
                             continue;
                         }
                         var memoBuf = bufferPool.Rent(len);
@@ -371,11 +373,6 @@ namespace GoFish.DataAccess
                         {
                             memofs.Read(memoBuf, 0, len);
                             rowData[i] = TextEncoding.GetString(memoBuf, 0, len);
-                        }
-                        catch(Exception ex)
-                        {
-                            // wtf
-                            throw;
                         }
                         finally
                         {
