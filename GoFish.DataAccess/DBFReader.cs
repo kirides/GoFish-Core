@@ -235,7 +235,7 @@ namespace GoFish.DataAccess
             } while (rowBuf[0] == '*' && !includeDeleted); // Skip deleted entries;
 
             memofs.Position = 6;
-            var memoBlocksize = memofs.ReadShort(bigEndian: true);
+            var memoBlocksize = memofs.ReadShortBE();
 
             var result = ReadRowFromBufferMemo(rowBuf, index, memofs, memoBlocksize);
             return result;
@@ -343,31 +343,39 @@ namespace GoFish.DataAccess
                         rowData[i] = "";
                         continue;
                     }
-                    var targetPos = 4 + offset * memoBlocksize;
+                    var targetPos = 4 + (offset * memoBlocksize);
                     var memoPos = memofs.Position;
-                    if (memoPos < targetPos)
-                    {
-                        memofs.Seek(targetPos - memoPos, SeekOrigin.Current);
-                    }
-                    else
-                    {
-                        memofs.Position = targetPos;
-                    }
+                    memofs.Position = targetPos;
                     var len = memofs.ReadIntBE(intBuf);
 
                     if ((field.Flags & DbfFieldFlags.Binary) != 0)
                     {
+                        if (len > memofs.Length)
+                        {
+                            // wtf...? Woher kommt das verkehrte offset?
+                            continue;
+                        }
                         var memoBuf = new byte[len];
                         memofs.Read(memoBuf, 0, len);
                         rowData[i] = memoBuf;
                     }
                     else
                     {
+                        if (len > memofs.Length)
+                        {
+                            // wtf...? Woher kommt das verkehrte offset?
+                            continue;
+                        }
                         var memoBuf = bufferPool.Rent(len);
-                        memofs.Read(memoBuf, 0, len);
                         try
                         {
+                            memofs.Read(memoBuf, 0, len);
                             rowData[i] = TextEncoding.GetString(memoBuf, 0, len);
+                        }
+                        catch(Exception ex)
+                        {
+                            // wtf
+                            throw;
                         }
                         finally
                         {
@@ -419,7 +427,7 @@ namespace GoFish.DataAccess
                         using (var memofs = dbf.OpenMemo())
                         {
                             memofs.Position = 6;
-                            var memoBlocksize = memofs.ReadShort(bigEndian: true);
+                            var memoBlocksize = memofs.ReadShortBE();
                             for (var index = 0; index < dbfHeader.RecordCount; index++)
                             {
                                 var read = fs.Read(rowBuf.Span);
@@ -501,7 +509,7 @@ namespace GoFish.DataAccess
                     using (var memofs = dbf.OpenMemo())
                     {
                         memofs.Position = 6;
-                        var memoBlocksize = memofs.ReadShort(bigEndian: true);
+                        var memoBlocksize = memofs.ReadShortBE();
                         for (var index = 0; index < dbfHeader.RecordCount;)
                         {
                             var readRes = await rdr.ReadAsync();

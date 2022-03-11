@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -199,6 +200,7 @@ namespace GoFish.DataAccess
 
         private int BTOI(in byte[] buf, in int offset)
         {
+            return BinaryPrimitives.ReadInt32LittleEndian(buf.AsSpan(offset, 4));
             return buf[offset] | buf[offset + 1] << 8 | buf[offset + 2] << 16 | buf[offset + 3] << 24;
         }
     }

@@ -7,8 +7,8 @@
 		<PublishSingleFile>true</PublishSingleFile>
 		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
-		<Platforms>x86</Platforms>
-		<RuntimeIdentifier>win10-x86</RuntimeIdentifier>
+		<Platforms>AnyCPU;x64;x86</Platforms>
+		<!--<RuntimeIdentifier>win10-x86</RuntimeIdentifier>-->
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)'=='Debug'">

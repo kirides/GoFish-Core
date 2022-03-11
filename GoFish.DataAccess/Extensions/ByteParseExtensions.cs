@@ -7,13 +7,6 @@ namespace GoFish.DataAccess.Extensions
     // ---- EXTENSIONS -----------------------
     public static class ByteParseExtensions
     {
-        private static void ReadNumber(Stream s, byte[] buffer, int offset, int count, bool bigEndian)
-        {
-            count = s.Read(buffer, offset, count);
-            if (!BitConverter.IsLittleEndian && !bigEndian || BitConverter.IsLittleEndian && bigEndian)
-                Array.Reverse(buffer, offset, count);
-        }
-
         public static int ReadInt(this Stream s, bool bigEndian = false)
         {
             Span<byte> buf = stackalloc byte[4];
@@ -32,11 +25,20 @@ namespace GoFish.DataAccess.Extensions
             s.Read(buffer);
             return BinaryPrimitives.ReadInt32BigEndian(buffer);
         }
+
+        public static short ReadShortBE(this Stream s)
+        {
+            Span<byte> buf = stackalloc byte[2];
+            s.Read(buf);
+            return BinaryPrimitives.ReadInt16BigEndian(buf);
+        }
         public static short ReadShort(this Stream s, bool bigEndian = false)
         {
-            var buf = new byte[sizeof(short)];
-            ReadNumber(s, buf, 0, sizeof(short), bigEndian);
-            return BitConverter.ToInt16(buf, 0);
+            Span<byte> buf = stackalloc byte[2];
+            s.Read(buf);
+            return bigEndian
+                ? BinaryPrimitives.ReadInt16BigEndian(buf)
+                : BinaryPrimitives.ReadInt16LittleEndian(buf);
         }
 
         public static void WriteNumber(this Stream s, byte[] buffer, int offset, byte count, bool bigEndian)
