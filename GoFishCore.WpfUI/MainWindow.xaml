@@ -5,8 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:ic="http://icsharpcode.net/sharpdevelop/avalonedit"
         xmlns:local="clr-namespace:GoFishCore.WpfUI"
+        xmlns:viewModels="clr-namespace:GoFishCore.WpfUI.ViewModels"
         mc:Ignorable="d"
-        Title="GoFish Core (Search-Only)" Height="450" Width="800">
+        Title="GoFish Core (Search-Only)" Height="450" Width="800"
+        d:DataContext="{d:DesignInstance {x:Type viewModels:MainViewModel}, IsDesignTimeCreatable=False}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -28,7 +30,11 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox Grid.Column="0"  Text="{Binding SearchText, FallbackValue='Search Value'}" />
+                <TextBox Grid.Column="0"  Text="{Binding SearchText, FallbackValue='Search Value'}">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding SearchCommand}"/>
+                    </TextBox.InputBindings>
+                </TextBox>
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <CheckBox VerticalAlignment="Center" Content="Regex" IsChecked="{Binding UseRegex}"  Margin="0,0,5,0" />
                     <CheckBox VerticalAlignment="Center" Content="Case Sensitive" IsChecked="{Binding CaseSensitive}"  Margin="0,0,5,0" />
@@ -45,7 +51,7 @@
             <TextBox IsReadOnly="True" Grid.Column="1" Text="{Binding DirectoryPath}" />
             <Button Grid.Column="2" Content="..." Click="ButtonBrowse_Click"/>
         </Grid>
-        <Button x:Name="btnSearch" IsEnabled="{Binding CanSearch}" Grid.Row="2" ToolTip="Rightclick to clear cache" Content="Search" FontSize="20" MouseDown="BtnSearch_MouseDown" Click="ButtonSearch_Click"/>
+        <Button x:Name="btnSearch" Grid.Row="2" ToolTip="Rightclick to clear cache" Content="Search" FontSize="20" MouseDown="BtnSearch_MouseDown" Command="{Binding SearchCommand}"/>
         <DataGrid x:Name="listSearchResults" AutoGenerateColumns="False" Grid.Row="3" ItemsSource="{Binding Models, IsAsync=True}" IsReadOnly="True" SelectionChanged="ListSearchResults_SelectionChanged"
             VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling"
             EnableRowVirtualization="True"

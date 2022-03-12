@@ -1,8 +1,7 @@
-﻿namespace GoFish.DataAccess.VisualFoxPro
+﻿namespace GoFish.DataAccess.VisualFoxPro;
+
+public class ProjectHook
 {
-    public class ProjectHook
-    {
-        public string Class { get; set; }
-        public string Library { get; set; }
-    }
+    public string Class { get; set; }
+    public string Library { get; set; }
 }

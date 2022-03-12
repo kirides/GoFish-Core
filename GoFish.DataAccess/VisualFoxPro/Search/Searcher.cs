@@ -4,14 +4,14 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
-namespace GoFish.DataAccess.VisualFoxPro.Search
-{
-    public class Searcher
-    {
-        private static Pool<StringBuilder> sbPool = new Pool<StringBuilder>(1, () => new StringBuilder(4096));
-        private readonly ISearchAlgorithm searchAlgorithm;
+namespace GoFish.DataAccess.VisualFoxPro.Search;
 
-        private static readonly string templatePre = @"<!-- saved from url=(0014)about:internet -->
+public class Searcher
+{
+    private static Pool<StringBuilder> sbPool = new Pool<StringBuilder>(1, () => new StringBuilder(4096));
+    private readonly ISearchAlgorithm searchAlgorithm;
+
+    private static readonly string templatePre = @"<!-- saved from url=(0014)about:internet -->
 <!DOCTYPE html>
 <html lang=""en"">
 
@@ -31,7 +31,7 @@ pre[class*=language-].line-numbers{position:relative;padding-left:3.8em;counter-
 </head>
 <body>
 <pre class=""line-numbers""><code class=""language-foxpro"">";
-        private static readonly string templatePost = @"</code></pre>
+    private static readonly string templatePost = @"</code></pre>
 <script>
 /* PrismJS 1.16.0
 https://prismjs.com/download.html#themes=prism&plugins=keep-markup */
@@ -46,114 +46,113 @@ var _self=""undefined""!=typeof window?window:""undefined""!=typeof WorkerGlobal
             number:/(?:\b(?:\d+(?:\.|x|h)?\d*|\B\.\d+|\.T\.|\.F\.|NULL|\.NULL\.)(?:\$|\b))(?:E[+-]?\d+)?/i};
 </script>
 </body>";
-        static Searcher()
-        {
-            var assemblyPath = AppContext.BaseDirectory;
-            var tmplPath = Path.Combine(assemblyPath, "template.html");
+    static Searcher()
+    {
+        var assemblyPath = AppContext.BaseDirectory;
+        var tmplPath = Path.Combine(assemblyPath, "template.html");
 
-            if (File.Exists(tmplPath))
+        if (File.Exists(tmplPath))
+        {
+            var tmpl = File.ReadAllText(tmplPath);
+            const string contentDummy = "{{CONTENT}}";
+            var contentIdx = tmpl.IndexOf(contentDummy);
+            templatePre = tmpl.Substring(0, contentIdx);
+            templatePost = tmpl.Substring(contentIdx + contentDummy.Length);
+        }
+        else
+        {
+            var prePath = Path.Combine(assemblyPath, "template.pre.html");
+            var postPath = Path.Combine(assemblyPath, "template.post.html");
+            if (File.Exists(prePath))
             {
-                var tmpl = File.ReadAllText(tmplPath);
-                const string contentDummy = "{{CONTENT}}";
-                var contentIdx = tmpl.IndexOf(contentDummy);
-                templatePre = tmpl.Substring(0, contentIdx);
-                templatePost = tmpl.Substring(contentIdx + contentDummy.Length);
+                templatePre = File.ReadAllText(prePath);
             }
-            else
+            if (File.Exists(postPath))
             {
-                var prePath = Path.Combine(assemblyPath, "template.pre.html");
-                var postPath = Path.Combine(assemblyPath, "template.post.html");
-                if (File.Exists(prePath))
+                templatePost = File.ReadAllText(postPath);
+            }
+        }
+    }
+    public Searcher(ISearchAlgorithm searchAlgorithm)
+    {
+        this.searchAlgorithm = searchAlgorithm;
+    }
+
+    public IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false, CancellationToken cancellationToken = default)
+    {
+        return this.searchAlgorithm.Search(lib, text, ignoreCase, cancellationToken);
+    }
+
+    /// <summary>
+    /// Saves the results as HTML5 files in "<paramref name="directoryPath"/>/[ClassLibrary/]Class.Method.html"
+    /// </summary>
+    /// <param name="searchResults"></param>
+    /// <param name="directoryPath"></param>
+    public void SaveResults(IEnumerable<SearchResult> searchResults, Func<SearchResult, string> fileNameTemplate, string directoryPath)
+    {
+        foreach (SearchResult r in searchResults)
+        {
+            DirectoryInfo dirPath = Directory.CreateDirectory(Path.Combine(directoryPath, r.Library));
+
+            HTMLifySurroundLinesToFile(r.Content,
+                Path.Combine(directoryPath, r.Library, $"{fileNameTemplate(r)}.html"), r.Line, "<mark>", "</mark>");
+        }
+    }
+
+    private static void HTMLifySurroundLines<TWriter>(
+        TWriter writer,
+        Action<TWriter, string> writeLine,
+        Action<TWriter, string> write,
+        string source,
+        int line,
+        string prefix,
+        string suffix = null,
+        int tabSize = 4)
+    {
+        using (StringReader sr = new StringReader(source))
+        {
+            write(writer, templatePre);
+            int lineNo = 0;
+            while (sr.ReadLine() is string l)
+            {
+                int lineLen = l.Length;
+                l = l.TrimStart();
+                if (l.Length < lineLen)
                 {
-                    templatePre = File.ReadAllText(prePath);
+                    l = new string(' ', (lineLen - l.Length) * tabSize) + l;
                 }
-                if (File.Exists(postPath))
+
+                if (line == lineNo)
                 {
-                    templatePost = File.ReadAllText(postPath);
+                    write(writer, prefix);
+                    write(writer, l.Replace("<", "&lt;").Replace(">", "&gt;"));
+                    writeLine(writer, suffix ?? prefix);
                 }
-            }
-        }
-        public Searcher(ISearchAlgorithm searchAlgorithm)
-        {
-            this.searchAlgorithm = searchAlgorithm;
-        }
-
-        public IEnumerable<SearchResult> Search(ClassLibrary lib, string text, bool ignoreCase = false, CancellationToken cancellationToken = default)
-        {
-            return this.searchAlgorithm.Search(lib, text, ignoreCase, cancellationToken);
-        }
-
-        /// <summary>
-        /// Saves the results as HTML5 files in "<paramref name="directoryPath"/>/[ClassLibrary/]Class.Method.html"
-        /// </summary>
-        /// <param name="searchResults"></param>
-        /// <param name="directoryPath"></param>
-        public void SaveResults(IEnumerable<SearchResult> searchResults, Func<SearchResult, string> fileNameTemplate, string directoryPath)
-        {
-            foreach (SearchResult r in searchResults)
-            {
-                DirectoryInfo dirPath = Directory.CreateDirectory(Path.Combine(directoryPath, r.Library));
-
-                HTMLifySurroundLinesToFile(r.Content,
-                    Path.Combine(directoryPath, r.Library, $"{fileNameTemplate(r)}.html"), r.Line, "<mark>", "</mark>");
-            }
-        }
-
-        private static void HTMLifySurroundLines<TWriter>(
-            TWriter writer,
-            Action<TWriter, string> writeLine,
-            Action<TWriter, string> write,
-            string source,
-            int line,
-            string prefix,
-            string suffix = null,
-            int tabSize = 4)
-        {
-            using (StringReader sr = new StringReader(source))
-            {
-                write(writer, templatePre);
-                int lineNo = 0;
-                while (sr.ReadLine() is string l)
+                else
                 {
-                    int lineLen = l.Length;
-                    l = l.TrimStart();
-                    if (l.Length < lineLen)
-                    {
-                        l = new string(' ', (lineLen - l.Length) * tabSize) + l;
-                    }
-
-                    if (line == lineNo)
-                    {
-                        write(writer, prefix);
-                        write(writer, l.Replace("<", "&lt;").Replace(">", "&gt;"));
-                        writeLine(writer, suffix ?? prefix);
-                    }
-                    else
-                    {
-                        writeLine(writer, l.Replace("<", "&lt;").Replace(">", "&gt;"));
-                    }
-                    lineNo++;
+                    writeLine(writer, l.Replace("<", "&lt;").Replace(">", "&gt;"));
                 }
-                write(writer, templatePost);
+                lineNo++;
             }
+            write(writer, templatePost);
         }
+    }
 
-        private static void HTMLifySurroundLinesToFile(string source, string filePath, int line, string prefix, string suffix = null, int tabSize = 4)
+    private static void HTMLifySurroundLinesToFile(string source, string filePath, int line, string prefix, string suffix = null, int tabSize = 4)
+    {
+        using (StreamWriter sw = new StreamWriter(filePath, false, Encoding.UTF8))
         {
-            using (StreamWriter sw = new StreamWriter(filePath, false, Encoding.UTF8))
-            {
-                HTMLifySurroundLines(sw, (w, v) => w.WriteLine(v), (w, v) => w.Write(v), source, line, prefix, suffix, tabSize);
-            }
+            HTMLifySurroundLines(sw, (w, v) => w.WriteLine(v), (w, v) => w.Write(v), source, line, prefix, suffix, tabSize);
         }
+    }
 
-        public static string HTMLifySurroundLines(string source, int line, string prefix, string suffix = null, int tabSize = 4)
-        {
-            StringBuilder sb = sbPool.Rent();
-            HTMLifySurroundLines(sb, (w, v) => w.AppendLine(v), (w, v) => w.Append(v), source, line, prefix, suffix, tabSize);
-            string result = sb.ToString();
-            sb.Clear();
-            sbPool.Return(sb);
-            return result;
-        }
+    public static string HTMLifySurroundLines(string source, int line, string prefix, string suffix = null, int tabSize = 4)
+    {
+        StringBuilder sb = sbPool.Rent();
+        HTMLifySurroundLines(sb, (w, v) => w.AppendLine(v), (w, v) => w.Append(v), source, line, prefix, suffix, tabSize);
+        string result = sb.ToString();
+        sb.Clear();
+        sbPool.Return(sb);
+        return result;
     }
 }

@@ -1,4 +1,3 @@
-﻿namespace GoFish.DataAccess.VisualFoxPro
-{
-    public enum MethodType { Procedure, Function }
-}
+﻿namespace GoFish.DataAccess.VisualFoxPro;
+
+public enum MethodType { Procedure, Function }

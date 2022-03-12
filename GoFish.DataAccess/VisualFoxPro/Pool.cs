@@ -1,42 +1,40 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 
-namespace GoFish.DataAccess.VisualFoxPro
+namespace GoFish.DataAccess.VisualFoxPro;
+
+internal class Pool<T>
 {
-    internal class Pool<T>
+    private readonly int size;
+    private readonly Func<T> factory;
+    private readonly ConcurrentQueue<T> pool;
+
+    public Pool(int size, Func<T> factory)
     {
-        private readonly int size;
-        private readonly Func<T> factory;
-        private readonly ConcurrentQueue<T> pool;
-
-        public Pool(int size, Func<T> factory)
+        pool = new ConcurrentQueue<T>();
+        for (int i = 0; i < size; i++)
         {
-            pool = new ConcurrentQueue<T>();
-            for (int i = 0; i < size; i++)
-            {
-                pool.Enqueue(factory());
-            }
-
-            this.size = size;
-            this.factory = factory;
+            pool.Enqueue(factory());
         }
 
-        public T Rent()
-        {
-            if (!pool.TryDequeue(out var item))
-            {
-                item = factory();
-            }
-            return item;
-        }
+        this.size = size;
+        this.factory = factory;
+    }
 
-        public void Return(T item)
+    public T Rent()
+    {
+        if (!pool.TryDequeue(out var item))
         {
-            if (pool.Count < size)
-            {
-                pool.Enqueue(item);
-            }
+            item = factory();
+        }
+        return item;
+    }
+
+    public void Return(T item)
+    {
+        if (pool.Count < size)
+        {
+            pool.Enqueue(item);
         }
     }
 }
