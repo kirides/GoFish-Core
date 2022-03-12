@@ -13,16 +13,19 @@ public class Class
     {
         var form = new Class
         {
-            Name = (string)row[Constants.VCX.NAME],
-            BaseClass = (string)row[Constants.VCX.CLASS]
+            Name = row[Constants.VCX.NAME] as string,
+            BaseClass = row[Constants.VCX.CLASS] as string
         };
-        using (var propertyBody = new StringReader((string)row[Constants.VCX.PROPERTIES]))
+
+        
+        if (row[Constants.VCX.PROPERTIES] is string properties && properties.Length > 0)
         {
-            form.ParseProperties(propertyBody);
+            form.ParseProperties(properties.AsMemory());
         }
 
-        using (var methodBodies = new StringReader((string)row[Constants.VCX.BODY]))
+        if (row[Constants.VCX.BODY] is string body && body.Length > 0)
         {
+            using var methodBodies = new StringReader(body);
             form.ParseMethods(methodBodies);
         }
 
@@ -45,15 +48,15 @@ public class Class
     internal readonly List<Method> methods = new List<Method>();
     public IReadOnlyList<Method> Methods => methods;
 
-    internal readonly List<string> properties = new List<string>();
-    public IReadOnlyList<string> Properties => properties.AsReadOnly();
+    internal readonly List<ReadOnlyMemory<char>> properties = new List<ReadOnlyMemory<char>>();
+    public IReadOnlyList<ReadOnlyMemory<char>> Properties => properties.AsReadOnly();
 
     public string Name { get; set; } = "";
     public string BaseClass { get; set; } = "";
 
-    private void ParseProperties(TextReader rdr)
+    private void ParseProperties(ReadOnlyMemory<char> body)
     {
-        while (rdr.ReadLine() is string line)
+        foreach (var line in body.EnumerateLines())
         {
             properties.Add(line);
         }
@@ -107,13 +110,13 @@ public class Class
         var method = new Method
         {
             Type = type,
-            Name = line.Substring(line.IndexOf(' ') + 1),
+            Name = line.AsSpan(line.IndexOf(' ') + 1).ToString(),
         };
         var bodyBuilder = stringBuilderPool.Rent();
 
         while (rdr.ReadLine() is string bodyLine)
         {
-            var trimmedLine = bodyLine.TrimStart();
+            var trimmedLine = bodyLine.AsSpan().TrimStart();
             if (trimmedLine.StartsWith("ENDFU", StringComparison.OrdinalIgnoreCase)
                 || trimmedLine.StartsWith("ENDPR", StringComparison.OrdinalIgnoreCase))
             {
@@ -131,7 +134,7 @@ public class Class
             }
             if (trimmedLine.StartsWith("PARAM", StringComparison.OrdinalIgnoreCase) || trimmedLine.StartsWith("LPARAM", StringComparison.OrdinalIgnoreCase))
             {
-                method.Parameters.AddRange(ReadParameters(rdr, trimmedLine.Substring(trimmedLine.IndexOf(' ') + 1)));
+                method.Parameters.AddRange(ReadParameters(rdr, trimmedLine.Slice(trimmedLine.IndexOf(' ') + 1).ToString()));
             }
             bodyBuilder.AppendLine(bodyLine);
         }

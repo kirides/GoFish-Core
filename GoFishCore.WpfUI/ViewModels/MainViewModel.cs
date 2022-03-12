@@ -219,11 +219,11 @@ public class MainViewModel : ViewModelBase
                     Dbf dbf = new Dbf(file, memo, fileEncoding);
                     DbfReader reader = new DbfReader(dbf, fileEncoding);
                     Array.Fill(reader.IncludeFieldIndices, false);
-                    reader.IncludeFieldIndices[3] = true;
-                    reader.IncludeFieldIndices[4] = true;
-                    reader.IncludeFieldIndices[6] = true;
-                    reader.IncludeFieldIndices[7] = true;
-                    reader.IncludeFieldIndices[8] = true;
+                    reader.IncludeFieldIndices[Constants.VCX.CLASS] = true; 
+                    reader.IncludeFieldIndices[Constants.VCX.BASE_CLASS] = true;
+                    reader.IncludeFieldIndices[Constants.VCX.NAME] = true;
+                    reader.IncludeFieldIndices[Constants.VCX.PARENT_NAME] = true;
+                    //reader.IncludeFieldIndices[Constants.VCX.PROPERTIES] = true;
                     reader.IncludeFieldIndices[Constants.VCX.BODY] = true;
                     IEnumerable<object[]> rows = reader.ReadRows((i, o) => (string)o[Constants.VCX.BODY] != "", includeMemo: true);
                     library = ClassLibrary.FromRows(filename, rows);
@@ -294,7 +294,8 @@ public class MainViewModel : ViewModelBase
             foreach (var p in c.Properties)
             {
                 sb.Append("\t");
-                sb.AppendLine(p);
+                sb.Append(p);
+                sb.AppendLine();
             }
             sb.AppendLine();
 
@@ -327,11 +328,11 @@ public class MainViewModel : ViewModelBase
                     }
                 }
                 sb.AppendLine(")");
-                var bodyReader = new StringReader(m.Body);
                 bool isStart = true;
-                while (bodyReader.ReadLine() is string line)
+                foreach (var line in m.Body.AsSpan().EnumerateLines())
                 {
-                    if (isStart && string.IsNullOrWhiteSpace(line))
+                    var isEmptyLine = line.Trim().IsEmpty;
+                    if (isStart && isEmptyLine)
                     {
                         continue;
                     }
@@ -339,11 +340,12 @@ public class MainViewModel : ViewModelBase
                     {
                         isStart = false;
                     }
-                    if (!string.IsNullOrWhiteSpace(line))
+                    if (!isEmptyLine)
                     {
                         sb.Append("\t\t");
                     }
-                    sb.AppendLine(line);
+                    sb.Append(line);
+                    sb.AppendLine();
                 }
                 while (sb[sb.Length - 1] == '\n' || sb[sb.Length - 1] == '\r')
                 {

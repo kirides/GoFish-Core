@@ -240,8 +240,9 @@ public class DbfReader
 
         memofs.Position = 6;
         var memoBlocksize = memofs.ReadShortBE();
+        var memoFileSize = memofs.Length;
 
-        var result = ReadRowFromBufferMemo(rowBuf, index, memofs, memoBlocksize);
+        var result = ReadRowFromBufferMemo(rowBuf, index, memofs, memoBlocksize, memoFileSize);
         return result;
     }
 
@@ -315,7 +316,7 @@ public class DbfReader
         }
         return rowData;
     }
-    private object[] ReadRowFromBufferMemo(ReadOnlySpan<byte> rowBuf, int index, Stream memofs, short memoBlocksize)
+    private object[] ReadRowFromBufferMemo(ReadOnlySpan<byte> rowBuf, int index, Stream memofs, short memoBlocksize, long memoFileSize)
     {
         var rowData = new object[dbfHeader.Fields.Count];
         INullFieldHandler nullFieldHandler = null;
@@ -356,7 +357,7 @@ public class DbfReader
 
                 if ((field.Flags & DbfFieldFlags.Binary) != 0)
                 {
-                    if (len > memofs.Length)
+                    if (len < 1 || len > memoFileSize)
                     {
                         // wtf...? Woher kommt das verkehrte offset?
                         rowData[i] = Array.Empty<byte>();
@@ -368,7 +369,7 @@ public class DbfReader
                 }
                 else
                 {
-                    if (len > memofs.Length)
+                    if (len < 1 || len > memoFileSize)
                     {
                         // wtf...? Woher kommt das verkehrte offset?
                         rowData[i] = "INVALID MEMO OFFSET";
@@ -431,6 +432,7 @@ public class DbfReader
                     {
                         memofs.Position = 6;
                         var memoBlocksize = memofs.ReadShortBE();
+                        var memoFileSize = memofs.Length;
                         for (var index = 0; index < dbfHeader.RecordCount; index++)
                         {
                             var read = fs.Read(rowBuf.Span);
@@ -438,7 +440,7 @@ public class DbfReader
                                 throw new InvalidOperationException($"Could not read Row at Index {index}");
                             if (rowBuf.Span[0] == 0x2A && !includeDeleted) continue; // Entry is marked Deleted(*)
 
-                            var rowData = ReadRowFromBufferMemo(rowBuf.Span, index, memofs, memoBlocksize);
+                            var rowData = ReadRowFromBufferMemo(rowBuf.Span, index, memofs, memoBlocksize, memoFileSize);
                             if (predicate(index, rowData))
                                 yield return rowData;
                         }
